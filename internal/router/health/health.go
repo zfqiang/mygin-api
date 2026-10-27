@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
 )
@@ -65,4 +66,31 @@ func (r *HealthRouter) RegisterHealthRoutes() {
 		// 所有检查通过，返回服务就绪状态
 		c.JSON(http.StatusOK, gin.H{"status": "ready"})
 	})
+}
+
+func (r *HealthRouter) RegisterPprofRoutes() {
+	//创建受保护的路由组 -- 正式建议这种
+	// debugGroup := r.appCfg.Engine.Group("/debug", func(c *gin.Context) {
+	// 	// 简单的 Token 验证示例
+	// 	if c.GetHeader("Authorization") != "Bearer secret-token" {
+	// 		c.AbortWithStatus(http.StatusForbidden)
+	// 		return
+	// 	}
+	// 	c.Next()
+	// })
+
+	// 在受保护组中注册 pprof
+	// pprof.RouteRegister(debugGroup, "pprof")
+	pprof.RouteRegister(r.appCfg.Engine, "/debug/pprof")
+
+	/**
+	采集 30 秒的 CPU 采样数据，找出最耗时的函数。
+	# 采集并进入交互式终端
+	go tool pprof http://localhost:8080/debug/pprof/profile?seconds=30
+
+	# 进入终端后输入 web 生成 SVG 火焰图（需安装 graphviz）
+	(pprof) web
+	# 或者输入 top 查看耗时最高的前几个函数
+	(pprof) top 10
+	*/
 }

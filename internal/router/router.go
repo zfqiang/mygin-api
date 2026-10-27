@@ -37,6 +37,7 @@ func (router *RouterCfg) New(appCfg *config.AppConfig) http.Handler {
 	// 注册健康检查路由
 	health := health.NewHealth(appCfg)
 	health.RegisterHealthRoutes()
+	health.RegisterPprofRoutes() // 注册pprof路由
 
 	// 注册API路由
 	api := api.NewApiRouter(appCfg)

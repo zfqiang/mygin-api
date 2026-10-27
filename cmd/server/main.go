@@ -15,6 +15,7 @@ import (
 	"mygin-api/internal/config"
 	"mygin-api/internal/database"
 	"mygin-api/internal/router"
+	_ "net/http/pprof"
 )
 
 func main() {
