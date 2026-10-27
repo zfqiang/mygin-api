@@ -52,7 +52,9 @@ type AppConfig struct {
 
 func Load() (Config, error) {
 	var err error
-	err = godotenv.Load("D:/goStudy/mygin-api/.env")
+	envPath := LoadEnvFromRoot()
+	log.Printf("Loading .env file from %s", envPath)
+	err = godotenv.Load(envPath)
 	if err != nil {
 		log.Fatal("Error loading .env file")
 		return Config{}, err
