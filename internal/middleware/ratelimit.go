@@ -19,6 +19,13 @@ end
 return {count, redis.call("PTTL", KEYS[1])}
 `)
 
+type RateLimiter struct {
+    redisClient *redis.Client
+    limit int64
+    window time.Duration
+    logger *slog.Logger
+}
+
 func RateLimit(client *redis.Client, limit int64, window time.Duration, logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		now := time.Now()

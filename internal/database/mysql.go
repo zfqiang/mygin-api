@@ -6,8 +6,9 @@ import (
 	"net"
 	"time"
 
-	mysqlDriverConfig "github.com/go-sql-driver/mysql"
 	"mygin-api/internal/config"
+
+	mysqlDriverConfig "github.com/go-sql-driver/mysql"
 
 	mysqlDriver "gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -16,14 +17,15 @@ import (
 
 func Open(ctx context.Context, cfg config.MySQLConfig) (*gorm.DB, error) {
 	dsnConfig := mysqlDriverConfig.Config{
-		User:      cfg.User,
-		Passwd:    cfg.Password,
-		Net:       "tcp",
-		Addr:      net.JoinHostPort(cfg.Host, cfg.Port),
-		DBName:    cfg.Database,
-		Params:    map[string]string{"charset": "utf8mb4"},
-		ParseTime: true,
-		Loc:       time.Local,
+		User:                 cfg.User,
+		Passwd:               cfg.Password,
+		Net:                  "tcp",
+		Addr:                 net.JoinHostPort(cfg.Host, cfg.Port),
+		DBName:               cfg.Database,
+		Params:               map[string]string{"charset": "utf8mb4"},
+		ParseTime:            true,
+		Loc:                  time.Local,
+		AllowNativePasswords: true,
 	}
 	dsn := dsnConfig.FormatDSN()
 	db, err := gorm.Open(mysqlDriver.Open(dsn), &gorm.Config{

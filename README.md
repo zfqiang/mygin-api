@@ -48,9 +48,19 @@ internal/router/     路由及健康检查
 | GET | `/healthz` | 进程存活检查 |
 | GET | `/readyz` | 检查 MySQL 和 Redis 可用性 |
 | GET | `/api/v1/ping` | 示例公开接口 |
+| POST | `/api/v1/auth/login` | 使用数据库中的用户名和密码登录，返回 JWT |
 | GET | `/api/v1/me` | 示例 JWT 保护接口，要求 `Authorization: Bearer <token>` |
 
-`/api/v1/me` 的 token 通过 `middleware.IssueToken(userID, secret, issuer, ttl)` 生成。登录、用户模型和授权策略需由业务层实现；框架不会提供固定的账号体系。数据库 schema/migration 同样由业务模块管理。
+登录请求示例：
+
+```json
+{
+  "username": "alice",
+  "password": "your-password"
+}
+```
+
+成功响应包含 `access_token`、`token_type`、`expires_in` 和基本用户信息；用 `Authorization: Bearer <access_token>` 访问 `/api/v1/me`。用户名查找和密码校验失败均返回相同的 `401` 响应。密码以 bcrypt 哈希保存，不会返回密码或哈希值。服务启动时会自动创建/更新 `users` 表；该接口不提供注册，新增用户时应使用 `auth.HashPassword` 生成 `PasswordHash` 后再写入数据库。
 
 ## 中间件行为
 

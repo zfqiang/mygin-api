@@ -2,10 +2,17 @@ package config
 
 import (
 	"fmt"
+	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 type Config struct {
@@ -35,11 +42,26 @@ type RedisConfig struct {
 	DB       int
 }
 
+type AppConfig struct {
+	Engine      *gin.Engine
+	Cfg         *Config
+	DB          *gorm.DB
+	RedisClient *redis.Client
+	Logger      *slog.Logger
+}
+
 func Load() (Config, error) {
+	var err error
+	err = godotenv.Load("D:/goStudy/mygin-api/.env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Mode:        getEnv("APP_MODE", "debug"),
 		Port:        getEnv("APP_PORT", "8080"),
-		JWTSecret:   []byte(os.Getenv("JWT_SECRET")),
+		JWTSecret:   []byte(getEnv("JWT_SECRET", "")),
 		JWTIssuer:   getEnv("JWT_ISSUER", "mygin-api"),
 		JWTTTL:      24 * time.Hour,
 		CORSOrigins: splitCSV(getEnv("CORS_ORIGINS", "http://localhost:3000")),
@@ -49,17 +71,16 @@ func Load() (Config, error) {
 			Host:     getEnv("MYSQL_HOST", "127.0.0.1"),
 			Port:     getEnv("MYSQL_PORT", "3306"),
 			User:     getEnv("MYSQL_USER", "root"),
-			Password: os.Getenv("MYSQL_PASSWORD"),
+			Password: getEnv("MYSQL_PASSWORD", ""),
 			Database: getEnv("MYSQL_DATABASE", "mygin_api"),
 		},
 		Redis: RedisConfig{
 			Addr:     getEnv("REDIS_ADDR", "127.0.0.1:6379"),
-			Password: os.Getenv("REDIS_PASSWORD"),
+			Password: getEnv("REDIS_PASSWORD", ""),
 			DB:       0,
 		},
 	}
 
-	var err error
 	if cfg.JWTTTL, err = durationEnv("JWT_TTL", cfg.JWTTTL); err != nil {
 		return Config{}, err
 	}

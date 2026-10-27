@@ -1,64 +1,45 @@
 package router
 
 import (
-	"context"
-	"log/slog"
 	"net/http"
-	"time"
 
 	"mygin-api/internal/config"
 	"mygin-api/internal/middleware"
+	"mygin-api/internal/router/api"
+	"mygin-api/internal/router/health"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 )
 
-func New(cfg config.Config, db *gorm.DB, redisClient *redis.Client, logger *slog.Logger) http.Handler {
-	gin.SetMode(cfg.Mode)
+type RouterCfg struct {
+}
+
+func NewRouter() *RouterCfg {
+	return &RouterCfg{}
+}
+
+func (router *RouterCfg) New(appCfg *config.AppConfig) http.Handler {
+
+	gin.SetMode(appCfg.Cfg.Mode)
 	engine := gin.New()
+
+	// 中间件
 	engine.Use(
-		middleware.RequestLogger(logger),
-		middleware.Recovery(logger),
-		middleware.CORS(cfg.CORSOrigins),
-		middleware.RateLimit(redisClient, cfg.RateLimit, cfg.RateWindow, logger),
+		middleware.RequestLogger(appCfg.Logger), // 请求日志
+		middleware.Recovery(appCfg.Logger),      // 错误恢复
+		middleware.CORS(appCfg.Cfg.CORSOrigins), // 跨域
+		middleware.RateLimit(appCfg.RedisClient, appCfg.Cfg.RateLimit, appCfg.Cfg.RateWindow, appCfg.Logger), // 限流
 	)
-	engine.SetTrustedProxies(nil)
+	engine.SetTrustedProxies(nil) // 不信任任何代理
+	appCfg.Engine = engine
 
-	engine.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
-	})
-	engine.GET("/readyz", func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
-		defer cancel()
+	// 注册健康检查路由
+	health := health.NewHealth(appCfg)
+	health.RegisterHealthRoutes()
 
-		sqlDB, err := db.DB()
-		if err != nil {
-			logger.Error("readiness check failed", "dependency", "mysql", "error", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
-			return
-		}
-		if err := sqlDB.PingContext(ctx); err != nil {
-			logger.Error("readiness check failed", "dependency", "mysql", "error", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
-			return
-		}
-		if err := redisClient.Ping(ctx).Err(); err != nil {
-			logger.Error("readiness check failed", "dependency", "redis", "error", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"status": "ready"})
-	})
-
-	api := engine.Group("/api/v1")
-	api.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "pong"})
-	})
-	api.GET("/me", middleware.JWTAuth(cfg.JWTSecret, cfg.JWTIssuer), func(c *gin.Context) {
-		userID, _ := middleware.AuthenticatedUserID(c)
-		c.JSON(http.StatusOK, gin.H{"user_id": userID})
-	})
+	// 注册API路由
+	api := api.NewApiRouter(appCfg)
+	api.RegisterAPIRoutes()
 
 	return engine
 }
