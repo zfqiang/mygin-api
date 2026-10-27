@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"mygin-api/internal/config"
-	"mygin-api/internal/models"
+	"mygin-api/internal/model"
 	"mygin-api/internal/pool"
 	"runtime/debug"
 	"sync"
@@ -154,8 +154,8 @@ func (o *OrderTimeout) ProcessOrder(ctx context.Context, orderNo string) error {
 	// 订单状态: 0-待支付, 1-已支付, 2-发货中, 3-已完成, 4-已取消, 5-售后中
 
 	//查询订单
-	var order models.OrderTimeoutModel
-	result := o.appCfg.DB.Table(models.OrdersTableName).
+	var order model.OrderTimeoutModel
+	result := o.appCfg.DB.Table("orders").
 		Where("order_no = ?", orderNo).
 		First(&order)
 	//判断订单是否存在
@@ -168,7 +168,7 @@ func (o *OrderTimeout) ProcessOrder(ctx context.Context, orderNo string) error {
 		return fmt.Errorf("order %s cannot be cancelled due to current status: %d", orderNo, order.Status)
 	}
 	//更新订单已取消
-	result = o.appCfg.DB.Table(models.OrdersTableName).
+	result = o.appCfg.DB.Table("orders").
 		Where("order_no = ?", orderNo).
 		Where("version = ?", order.Version). //版本号 乐观锁
 		Update("status", 4)
