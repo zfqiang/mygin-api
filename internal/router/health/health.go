@@ -3,10 +3,12 @@ package health
 import (
 	"context"
 	"mygin-api/internal/config"
+	"mygin-api/internal/middleware"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/time/rate"
 )
 
 type HealthRouter struct {
@@ -26,12 +28,14 @@ func NewHealth(appCfg *config.AppConfig) *HealthRouter {
 func (r *HealthRouter) RegisterHealthRoutes() {
 	// 注册健康检查端点 /healthz
 	// 这个端点简单地返回服务状态为"ok"
-	r.appCfg.Engine.GET("/healthz", func(c *gin.Context) {
+	h := r.appCfg.Engine.Group("/healthz").
+		Use(middleware.RateLimitMiddleware(rate.Limit(r.appCfg.Cfg.RateLimitIP), r.appCfg.Cfg.RateBurstIP, r.appCfg.Logger))
+	h.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 	// 注册就绪检查端点 /readyz
 	// 这个端点会检查数据库和Redis的连接状态，确保服务完全就绪
-	r.appCfg.Engine.GET("/readyz", func(c *gin.Context) {
+	h.GET("/readyz", func(c *gin.Context) {
 		// 创建一个2秒超时的上下文
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 		defer cancel()

@@ -27,9 +27,9 @@ func LoadEnvFromRoot() string {
 			if err := godotenv.Load(envPath); err != nil {
 				// 如果 .env 不存在，godotenv 会报错，根据需求决定是否致命错误
 				// 在生产环境中，.env 通常不存在，建议忽略错误或仅记录警告
-				log.Printf("Warning: .env file not loaded or not found at %s: %v", envPath, err)
+				// log.Printf("Warning: .env file not loaded or not found at %s: %v", envPath, err)
 			} else {
-				log.Printf("Successfully loaded .env from: %s", envPath)
+				// log.Printf("Successfully loaded .env from: %s", envPath)
 				return envPath
 			}
 		}

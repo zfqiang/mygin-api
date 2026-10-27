@@ -22,8 +22,10 @@ type Config struct {
 	JWTIssuer   string
 	JWTTTL      time.Duration
 	CORSOrigins []string
-	RateLimit   int64
-	RateWindow  time.Duration
+	RateLimit   float64
+	RateBurst   int
+	RateLimitIP float64
+	RateBurstIP int
 	MySQL       MySQLConfig
 	Redis       RedisConfig
 }
@@ -53,7 +55,7 @@ type AppConfig struct {
 func Load() (Config, error) {
 	var err error
 	envPath := LoadEnvFromRoot()
-	log.Printf("Loading .env file from %s", envPath)
+
 	err = godotenv.Load(envPath)
 	if err != nil {
 		log.Fatal("Error loading .env file")
@@ -68,7 +70,9 @@ func Load() (Config, error) {
 		JWTTTL:      24 * time.Hour,
 		CORSOrigins: splitCSV(getEnv("CORS_ORIGINS", "http://localhost:3000")),
 		RateLimit:   100,
-		RateWindow:  time.Minute,
+		RateBurst:   200,
+		RateLimitIP: 5,
+		RateBurstIP: 10,
 		MySQL: MySQLConfig{
 			Host:     getEnv("MYSQL_HOST", "127.0.0.1"),
 			Port:     getEnv("MYSQL_PORT", "3306"),
@@ -86,10 +90,18 @@ func Load() (Config, error) {
 	if cfg.JWTTTL, err = durationEnv("JWT_TTL", cfg.JWTTTL); err != nil {
 		return Config{}, err
 	}
-	if cfg.RateLimit, err = int64Env("RATE_LIMIT", cfg.RateLimit); err != nil {
+
+	if cfg.RateLimit, err = float64Env("RATE_LIMIT", cfg.RateLimit); err != nil {
 		return Config{}, err
 	}
-	if cfg.RateWindow, err = durationEnv("RATE_WINDOW", cfg.RateWindow); err != nil {
+	if cfg.RateBurst, err = intEnv("RATE_BURST", cfg.RateBurst); err != nil {
+		return Config{}, err
+	}
+
+	if cfg.RateLimitIP, err = float64Env("RATE_LIMIT_IP", cfg.RateLimit); err != nil {
+		return Config{}, err
+	}
+	if cfg.RateBurstIP, err = intEnv("RATE_BURST_IP", cfg.RateBurst); err != nil {
 		return Config{}, err
 	}
 	if cfg.Redis.DB, err = intEnv("REDIS_DB", cfg.Redis.DB); err != nil {
@@ -112,11 +124,15 @@ func Load() (Config, error) {
 	if cfg.RateLimit <= 0 {
 		return Config{}, fmt.Errorf("RATE_LIMIT must be greater than zero")
 	}
-	if cfg.RateWindow <= 0 {
-		return Config{}, fmt.Errorf("RATE_WINDOW must be greater than zero")
+	if cfg.RateBurst <= 0 {
+		return Config{}, fmt.Errorf("RATE_BURST must be greater than zero")
 	}
-	if cfg.RateWindow.Milliseconds() < 1 {
-		return Config{}, fmt.Errorf("RATE_WINDOW must be at least 1ms")
+
+	if cfg.RateLimitIP <= 0 {
+		return Config{}, fmt.Errorf("RATE_LIMIT must be greater than zero")
+	}
+	if cfg.RateBurstIP <= 0 {
+		return Config{}, fmt.Errorf("RATE_BURST must be greater than zero")
 	}
 	if cfg.Redis.DB < 0 {
 		return Config{}, fmt.Errorf("REDIS_DB must not be negative")
@@ -183,6 +199,18 @@ func intEnv(key string, fallback int) (int, error) {
 		return fallback, nil
 	}
 	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	return parsed, nil
+}
+
+func float64Env(key string, fallback float64) (float64, error) {
+	value, ok := os.LookupEnv(key)
+	if !ok {
+		return fallback, nil
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}

@@ -9,6 +9,7 @@ import (
 	"mygin-api/internal/router/health"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/time/rate"
 )
 
 type RouterCfg struct {
@@ -28,7 +29,7 @@ func (router *RouterCfg) New(appCfg *config.AppConfig) http.Handler {
 		middleware.RequestLogger(appCfg.Logger), // 请求日志
 		middleware.Recovery(appCfg.Logger),      // 错误恢复
 		middleware.CORS(appCfg.Cfg.CORSOrigins), // 跨域
-		middleware.RateLimit(appCfg.RedisClient, appCfg.Cfg.RateLimit, appCfg.Cfg.RateWindow, appCfg.Logger), // 限流
+		middleware.GlobalRateLimitMiddleware(rate.Limit(appCfg.Cfg.RateLimit), appCfg.Cfg.RateBurst, appCfg.Logger), // 限流
 	)
 	engine.SetTrustedProxies(nil) // 不信任任何代理
 	appCfg.Engine = engine
