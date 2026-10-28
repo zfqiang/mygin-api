@@ -16,18 +16,20 @@ import (
 )
 
 type Config struct {
-	Mode        string
-	Port        string
-	JWTSecret   []byte
-	JWTIssuer   string
-	JWTTTL      time.Duration
-	CORSOrigins []string
-	RateLimit   float64
-	RateBurst   int
-	RateLimitIP float64
-	RateBurstIP int
-	MySQL       MySQLConfig
-	Redis       RedisConfig
+	Mode                string
+	Port                string
+	JWTSecret           []byte
+	JWTIssuer           string
+	JWTTTL              time.Duration
+	CORSOrigins         []string
+	RateLimit           float64
+	RateBurst           int
+	RateLimitIP         float64
+	RateBurstIP         int
+	MySQL               MySQLConfig
+	Redis               RedisConfig
+	WorkPoolSize        int
+	WorkPoolIdleTimeout time.Duration
 }
 
 type MySQLConfig struct {
@@ -63,16 +65,18 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		Mode:        getEnv("APP_MODE", "debug"),
-		Port:        getEnv("APP_PORT", "8080"),
-		JWTSecret:   []byte(getEnv("JWT_SECRET", "")),
-		JWTIssuer:   getEnv("JWT_ISSUER", "mygin-api"),
-		JWTTTL:      24 * time.Hour,
-		CORSOrigins: splitCSV(getEnv("CORS_ORIGINS", "http://localhost:3000")),
-		RateLimit:   100,
-		RateBurst:   200,
-		RateLimitIP: 5,
-		RateBurstIP: 10,
+		Mode:                getEnv("APP_MODE", "debug"),
+		Port:                getEnv("APP_PORT", "8080"),
+		JWTSecret:           []byte(getEnv("JWT_SECRET", "")),
+		JWTIssuer:           getEnv("JWT_ISSUER", "mygin-api"),
+		JWTTTL:              24 * time.Hour,
+		CORSOrigins:         splitCSV(getEnv("CORS_ORIGINS", "http://localhost:3000")),
+		RateLimit:           100,
+		RateBurst:           200,
+		RateLimitIP:         5,
+		RateBurstIP:         10,
+		WorkPoolSize:        20,
+		WorkPoolIdleTimeout: 60 * time.Second,
 		MySQL: MySQLConfig{
 			Host:     getEnv("MYSQL_HOST", "127.0.0.1"),
 			Port:     getEnv("MYSQL_PORT", "3306"),
@@ -97,11 +101,16 @@ func Load() (Config, error) {
 	if cfg.RateBurst, err = intEnv("RATE_BURST", cfg.RateBurst); err != nil {
 		return Config{}, err
 	}
-
 	if cfg.RateLimitIP, err = float64Env("RATE_LIMIT_IP", cfg.RateLimit); err != nil {
 		return Config{}, err
 	}
 	if cfg.RateBurstIP, err = intEnv("RATE_BURST_IP", cfg.RateBurst); err != nil {
+		return Config{}, err
+	}
+	if cfg.WorkPoolSize, err = intEnv("WORK_POOL_SIZE", cfg.WorkPoolSize); err != nil {
+		return Config{}, err
+	}
+	if cfg.WorkPoolIdleTimeout, err = durationEnv("WORK_POOL_IDLE_TIMEOUT", cfg.WorkPoolIdleTimeout); err != nil {
 		return Config{}, err
 	}
 	if cfg.Redis.DB, err = intEnv("REDIS_DB", cfg.Redis.DB); err != nil {

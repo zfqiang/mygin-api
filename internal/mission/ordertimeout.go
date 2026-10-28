@@ -43,7 +43,18 @@ func (o *OrderTimeout) Run(ctx context.Context) {
 		}
 	}()
 
-	pool, err := utils.NewWorkpool(10, o.appCfg.Logger)
+	// 创建协程池
+	poolSize := o.appCfg.Cfg.WorkPoolSize
+	if poolSize <= 0 {
+		o.appCfg.Logger.Error("Invalid workpool size", "poolSize", poolSize)
+		return
+	}
+	poolIdleTimeout := o.appCfg.Cfg.WorkPoolIdleTimeout
+	if poolIdleTimeout <= 0 {
+		o.appCfg.Logger.Error("Invalid workpool idle timeout", "poolIdleTimeout", poolIdleTimeout)
+		return
+	}
+	pool, err := utils.NewWorkpool(poolSize, poolIdleTimeout, o.appCfg.Logger)
 	if err != nil {
 		o.appCfg.Logger.Error("Failed to create workpool", "error", err)
 		return
@@ -64,7 +75,6 @@ func (o *OrderTimeout) Run(ctx context.Context) {
 			o.SubmitOrder(ctx, pool)
 		}
 	}
-
 }
 
 func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) error {
