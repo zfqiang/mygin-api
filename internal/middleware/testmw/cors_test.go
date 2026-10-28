@@ -1,6 +1,7 @@
-package middleware
+package testmw
 
 import (
+	"mygin-api/internal/middleware"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,7 +12,7 @@ import (
 func TestCORSPreflight(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.Use(CORS([]string{"https://app.example.com"}))
+	engine.Use(middleware.CORS([]string{"https://app.example.com"}))
 	engine.GET("/resource", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})

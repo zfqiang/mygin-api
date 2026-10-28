@@ -22,15 +22,23 @@ func NewHealth(appCfg *config.AppConfig) *HealthRouter {
 	}
 }
 
+func (r *HealthRouter) RegisterRoutes() {
+	// 注册健康检查路由
+	r.registerHealthRoutes()
+	// 注册pprof路由
+	r.registerPprofRoutes()
+}
+
 // RegisterHealthRoutes 注册健康检查相关的路由
 // 该函数用于设置服务的健康检查和就绪检查端点
 // RegisterHealthRoutes 注册健康检查相关的路由
 // 这个方法为健康检查和就绪检查提供了HTTP端点
-func (r *HealthRouter) RegisterHealthRoutes() {
+func (r *HealthRouter) registerHealthRoutes() {
 	// 注册健康检查端点 /healthz
 	// 这个端点简单地返回服务状态为"ok"
 	h := r.appCfg.Engine.Group("/healthz").
-		Use(middleware.RateLimitMiddleware(rate.Limit(r.appCfg.Cfg.RateLimitIP), r.appCfg.Cfg.RateBurstIP, r.appCfg.Logger))
+		Use(middleware.RateLimitMiddleware(rate.Limit(r.appCfg.Cfg.RateLimitIP), r.appCfg.Cfg.RateBurstIP, r.appCfg.Logger)).
+		Use(middleware.LocalhostOnlyMiddleware())
 	h.GET("/", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -68,7 +76,7 @@ func (r *HealthRouter) RegisterHealthRoutes() {
 	})
 }
 
-func (r *HealthRouter) RegisterPprofRoutes() {
+func (r *HealthRouter) registerPprofRoutes() {
 	//创建受保护的路由组 -- 正式建议这种
 	// debugGroup := r.appCfg.Engine.Group("/debug", func(c *gin.Context) {
 	// 	// 简单的 Token 验证示例
@@ -81,7 +89,8 @@ func (r *HealthRouter) RegisterPprofRoutes() {
 
 	// 在受保护组中注册 pprof
 	// pprof.RouteRegister(debugGroup, "pprof")
-	pprof.RouteRegister(r.appCfg.Engine, "/debug/pprof")
+	r.appCfg.Engine.Group("/debug").Use(middleware.LocalhostOnlyMiddleware())
+	pprof.RouteRegister(r.appCfg.Engine, "/pprof")
 
 	/**
 	采集 30 秒的 CPU 采样数据，找出最耗时的函数。

@@ -16,26 +16,30 @@ import (
 )
 
 var (
-	Q     = new(Query)
-	Order *order
+	Q         = new(Query)
+	OrderItem *orderItem
+	Product   *product
 )
 
 func SetDefault(db *gorm.DB, opts ...gen.DOOption) {
 	*Q = *Use(db, opts...)
-	Order = &Q.Order
+	OrderItem = &Q.OrderItem
+	Product = &Q.Product
 }
 
 func Use(db *gorm.DB, opts ...gen.DOOption) *Query {
 	return &Query{
-		db:    db,
-		Order: newOrder(db, opts...),
+		db:        db,
+		OrderItem: newOrderItem(db, opts...),
+		Product:   newProduct(db, opts...),
 	}
 }
 
 type Query struct {
 	db *gorm.DB
 
-	Order order
+	OrderItem orderItem
+	Product   product
 }
 
 func (q *Query) Available() bool { return q.db != nil }
@@ -44,8 +48,9 @@ func (q *Query) UnderlyingDB() *gorm.DB { return q.db }
 
 func (q *Query) clone(db *gorm.DB) *Query {
 	return &Query{
-		db:    db,
-		Order: q.Order.clone(db),
+		db:        db,
+		OrderItem: q.OrderItem.clone(db),
+		Product:   q.Product.clone(db),
 	}
 }
 
@@ -59,18 +64,21 @@ func (q *Query) WriteDB() *Query {
 
 func (q *Query) ReplaceDB(db *gorm.DB) *Query {
 	return &Query{
-		db:    db,
-		Order: q.Order.replaceDB(db),
+		db:        db,
+		OrderItem: q.OrderItem.replaceDB(db),
+		Product:   q.Product.replaceDB(db),
 	}
 }
 
 type queryCtx struct {
-	Order IOrderDo
+	OrderItem IOrderItemDo
+	Product   IProductDo
 }
 
 func (q *Query) WithContext(ctx context.Context) *queryCtx {
 	return &queryCtx{
-		Order: q.Order.WithContext(ctx),
+		OrderItem: q.OrderItem.WithContext(ctx),
+		Product:   q.Product.WithContext(ctx),
 	}
 }
 

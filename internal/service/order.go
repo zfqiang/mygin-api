@@ -6,6 +6,7 @@ import (
 	"mygin-api/internal/mission"
 	"mygin-api/internal/model"
 	"mygin-api/pkg/config"
+	"mygin-api/pkg/utils"
 	"mygin-api/test/fakermodel"
 	"time"
 
@@ -24,7 +25,12 @@ func NewOrderService(appCfg *config.AppConfig) *OrderService {
 }
 
 func (o *OrderService) GenTestOrderData(c *gin.Context) {
-	count := 10
+	count, err := utils.StrToInt(c.DefaultQuery("count", "10"))
+	if err != nil {
+		c.JSON(200, gin.H{"status": "error", "message": err.Error()})
+		o.appCfg.Logger.Error("strconv.Atoi failed:", "error", err)
+		return
+	}
 	orders := make([]fakermodel.Order, count)
 	for i := 0; i < count; i++ {
 		var order fakermodel.Order

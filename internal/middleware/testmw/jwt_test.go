@@ -1,6 +1,7 @@
-package middleware
+package testmw
 
 import (
+	"mygin-api/internal/middleware"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,14 +14,14 @@ func TestJWTAuth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	secret := []byte("test-secret-that-is-at-least-32-bytes-long")
 	issuer := "test-issuer"
-	token, err := IssueToken(42, secret, issuer, time.Minute)
+	token, err := middleware.IssueToken(42, secret, issuer, time.Minute)
 	if err != nil {
 		t.Fatalf("IssueToken() error = %v", err)
 	}
 
 	engine := gin.New()
-	engine.GET("/protected", JWTAuth(secret, issuer), func(c *gin.Context) {
-		userID, ok := AuthenticatedUserID(c)
+	engine.GET("/protected", middleware.JWTAuth(secret, issuer), func(c *gin.Context) {
+		userID, ok := middleware.AuthenticatedUserID(c)
 		if !ok {
 			c.Status(http.StatusInternalServerError)
 			return

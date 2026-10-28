@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"mygin-api/internal/middleware"
-	"mygin-api/internal/service"
 	"mygin-api/internal/service/auth"
 	"mygin-api/pkg/config"
 
@@ -21,6 +20,11 @@ func NewApiRouter(appCfg *config.AppConfig) *ApiRouter {
 	}
 }
 
+func (r *ApiRouter) RegisterRoutes() {
+	// 注册API路由
+	r.RegisterAPIRoutes()
+}
+
 func (r *ApiRouter) RegisterAPIRoutes() {
 	api := r.appCfg.Engine.Group("/api/v1")
 	api.GET("/ping", func(c *gin.Context) {
@@ -32,5 +36,4 @@ func (r *ApiRouter) RegisterAPIRoutes() {
 	})
 	api.POST("/auth/login", auth.NewLoginHandler(r.appCfg).Login)
 
-	api.POST("/gen/test_orders", service.NewOrderService(r.appCfg).GenTestOrderData)
 }

@@ -18,9 +18,9 @@ func main() {
 	// 注意：parseTime=True 对于时间类型字段正确映射至关重要
 	//  outPath ModelPkgPath 是相对当前项目目录的
 	g := gen.NewGenerator(gen.Config{
-		OutPath: "internal/dao/gend", // 生成代码的输出目录
+		OutPath: "../../internal/repository/gend", // 生成代码的输出目录
 		// OutFile:      "",                                            // 如果指定文件名，则所有代码生成到一个文件；否则按表名分文件
-		ModelPkgPath: "internal/model/genm",                         // 模型结构体生成的包路径
+		ModelPkgPath: "../../internal/model/genm",                   // 模型结构体生成的包路径
 		Mode:         gen.WithDefaultQuery | gen.WithQueryInterface, // 生成模式
 	})
 	// 【关键】显式声明需要导入的第三方包，否则生成的代码不会自动导入
@@ -72,12 +72,13 @@ func main() {
 	// ApplyBasic 会根据表结构生成基本的 CRUD 结构体和方法
 	// 你可以传入具体的表名，或者使用 g.GenerateAllTable() 生成所有表
 	g.ApplyBasic(
-		// 方式一：生成指定表
-		// g.GenerateModel("users"),
-		g.GenerateModel("orders"),
+	// 方式一：生成指定表
+	// g.GenerateModel("users"),
+	// g.GenerateModel("products"),
+	// g.GenerateModel("order_items"),
 
-		// 方式二：生成所有表 (推荐用于快速上手)
-		// g.GenerateAllTable()...,
+	// 方式二：生成所有表 (推荐用于快速上手)
+	// g.GenerateAllTable()...,
 	)
 
 	// 5. 执行生成
