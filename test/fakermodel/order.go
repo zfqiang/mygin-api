@@ -1,0 +1,27 @@
+package fakermodel
+
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
+
+type Order struct {
+	// ID              int64           `gorm:"column:id;primaryKey;autoIncrement:true;comment:主键ID" json:"id"`                              // 主键ID
+	OrderNo         string          `gorm:"column:order_no;not null;comment:业务订单号(全局唯一)" json:"order_no"`                                // 业务订单号(全局唯一)
+	UserID          int64           `gorm:"column:user_id;not null;comment:用户ID" json:"user_id"`                                         // 用户ID
+	Status          int32           `gorm:"column:status;not null;comment:订单状态: 0-待支付, 1-已支付, 2-发货中, 3-已完成, 4-已取消, 5-售后中" json:"status"` // 订单状态: 0-待支付, 1-已支付, 2-发货中, 3-已完成, 4-已取消, 5-售后中
+	TotalAmount     decimal.Decimal `gorm:"column:total_amount;not null;default:0.00;comment:订单总金额" json:"total_amount"`                 // 订单总金额
+	PayAmount       decimal.Decimal `gorm:"column:pay_amount;not null;default:0.00;comment:实付金额" json:"pay_amount"`                      // 实付金额
+	CreateTime      time.Time       `gorm:"column:create_time;not null;default:CURRENT_TIMESTAMP;comment:创建时间" json:"create_time"`       // 创建时间
+	PayTime         time.Time       `gorm:"column:pay_time;comment:支付时间" json:"pay_time"`                                                // 支付时间
+	FinishTime      time.Time       `gorm:"column:finish_time;comment:完成时间" json:"finish_time"`                                          // 完成时间
+	CancelTime      time.Time       `gorm:"column:cancel_time;comment:取消时间" json:"cancel_time"`                                          // 取消时间
+	UserName        string          `gorm:"column:user_name;comment:收货人姓名" json:"user_name"`                                             // 收货人姓名
+	UserPhone       string          `gorm:"column:user_phone;comment:收货人电话" json:"user_phone" faker:"len=20"`                            // 收货人电话
+	ReceiverAddress string          `gorm:"column:receiver_address;comment:收货地址快照" json:"receiver_address"`                              // 收货地址快照
+	Remark          string          `gorm:"column:remark;comment:用户备注" json:"remark"`                                                    // 用户备注
+	Source          int32           `gorm:"column:source;default:1;comment:订单来源: 1-APP, 2-Web, 3-小程序" json:"source"`                     // 订单来源: 1-APP, 2-Web, 3-小程序
+	IsDeleted       int32           `gorm:"column:is_deleted;not null;comment:逻辑删除: 0-未删除, 1-已删除" json:"is_deleted"`                     // 逻辑删除: 0-未删除, 1-已删除
+	Version         int32           `gorm:"column:version;not null;comment:乐观锁版本号" json:"version"`                                       // 乐观锁版本号
+}
