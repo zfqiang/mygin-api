@@ -1,6 +1,7 @@
 package gen
 
 import (
+	"mygin-api/internal/controller"
 	"mygin-api/internal/middleware"
 	"mygin-api/internal/service"
 	"mygin-api/pkg/config"
@@ -31,5 +32,5 @@ func (r *GenRouter) RegisterGenRoutes() {
 	// 注册生成测试订单数据的路由，GET请求"/gen/orders"将调用OrderService的GenTestOrderData方法
 	gen.GET("/orders", service.NewOrderService(r.appCfg).GenTestOrderData)
 	// 注册生成测试产品数据的路由，GET请求"/gen/products"将调用ProductService的GenTestProductData方法
-	gen.GET("/products", service.NewProductService(r.appCfg).GenTestProductData)
+	gen.GET("/products", controller.NewProductController(r.appCfg).GenTestProductData)
 }

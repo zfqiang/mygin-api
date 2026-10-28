@@ -15,8 +15,6 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const OrderTimeoutKey = "order:timeout"
-
 type OrderTimeout struct {
 	redisClient *redis.Client
 	appCfg      *config.AppConfig
@@ -84,7 +82,7 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 	// ZRANGEBYSCORE key min max LIMIT offset count
 	// 获取所有 score <= now 的成员（即已超时的订单）
 	// 注意：这里为了简单演示，一次性获取最多 10 个过期订单
-	orders, err := o.appCfg.RedisClient.ZRangeByScore(ctx, OrderTimeoutKey, &redis.ZRangeBy{
+	orders, err := o.appCfg.RedisClient.ZRangeByScore(ctx, utils.OrderTimeoutKey, &redis.ZRangeBy{
 		Min:    "-inf",
 		Max:    fmt.Sprintf("%f", now),
 		Offset: 0,
@@ -103,7 +101,7 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 		currentOrderNo := orderNo
 		// 尝试从 Sorted Set 中移除该成员，确保只被处理一次
 		// 使用 ZREM 的返回值判断是否成功移除，防止并发重复处理
-		_, err := o.appCfg.RedisClient.ZRem(ctx, OrderTimeoutKey, currentOrderNo).Result()
+		_, err := o.appCfg.RedisClient.ZRem(ctx, utils.OrderTimeoutKey, currentOrderNo).Result()
 		if err != nil {
 			o.appCfg.Logger.Error("Failed to remove order from redis", "error", err)
 			continue
@@ -150,7 +148,7 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 			o.wg.Done() // 提交失败时必须手动递减，防止 WaitGroup 死锁
 			o.appCfg.Logger.Error("Failed to submit order to pool", "orderNo", currentOrderNo, "error", err)
 			// 提交失败，将订单重新加回队列，防止数据丢失
-			o.appCfg.RedisClient.ZAdd(ctx, OrderTimeoutKey, redis.Z{
+			o.appCfg.RedisClient.ZAdd(ctx, utils.OrderTimeoutKey, redis.Z{
 				Score:  now,
 				Member: currentOrderNo,
 			})
@@ -165,7 +163,7 @@ func (o *OrderTimeout) ProcessOrder(ctx context.Context, orderNo string) error {
 
 	//查询订单
 	var order model.OrderTimeoutModel
-	result := o.appCfg.DB.Table("orders").
+	result := o.appCfg.DB.Table(model.OrdersTableName).
 		Select("id, order_no, status, version").
 		Where("order_no = ?", orderNo).
 		First(&order)
@@ -179,10 +177,10 @@ func (o *OrderTimeout) ProcessOrder(ctx context.Context, orderNo string) error {
 		return fmt.Errorf("order %s cannot be cancelled due to current status: %d", orderNo, order.Status)
 	}
 	//更新订单已取消
-	result = o.appCfg.DB.Table("orders").
+	result = o.appCfg.DB.Table(model.OrdersTableName).
 		Where("order_no = ?", orderNo).
 		Where("version = ?", order.Version). //版本号 乐观锁
-		Update("status", 4)
+		Update("status", utils.OrderStatusCancelled)
 	if result.Error != nil {
 		return fmt.Errorf("update order %s status failed: %w", orderNo, result.Error)
 	}

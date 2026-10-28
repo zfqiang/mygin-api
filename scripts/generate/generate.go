@@ -72,10 +72,11 @@ func main() {
 	// ApplyBasic 会根据表结构生成基本的 CRUD 结构体和方法
 	// 你可以传入具体的表名，或者使用 g.GenerateAllTable() 生成所有表
 	g.ApplyBasic(
-	// 方式一：生成指定表
-	// g.GenerateModel("users"),
-	// g.GenerateModel("products"),
-	// g.GenerateModel("order_items"),
+		// 方式一：生成指定表
+		// g.GenerateModel("users"),
+		// g.GenerateModel("orders"),
+		// g.GenerateModel("products"),
+		// g.GenerateModel("order_items"),
 
 	// 方式二：生成所有表 (推荐用于快速上手)
 	// g.GenerateAllTable()...,

@@ -3,8 +3,6 @@ package service
 import (
 	"fmt"
 	"math/rand"
-	"mygin-api/internal/mission"
-	"mygin-api/internal/model"
 	"mygin-api/pkg/config"
 	"mygin-api/pkg/utils"
 	"mygin-api/test/fakermodel"
@@ -47,10 +45,10 @@ func (o *OrderService) GenTestOrderData(c *gin.Context) {
 		order.PayAmount = decimal.NewFromFloat(float64(r.Intn(1000))).Round(2)
 		orders[i] = order
 		//判断订单状态，如果是未支付，加入超时队列
-		if order.Status == model.StatusCreated {
+		if order.Status == utils.OrderStatusCreated {
 			//加入超时队列--延迟20秒超时
 			timeout := float64(time.Now().Add(20 * time.Second).UnixNano())
-			o.appCfg.RedisClient.ZAdd(c.Request.Context(), mission.OrderTimeoutKey, redis.Z{
+			o.appCfg.RedisClient.ZAdd(c.Request.Context(), utils.OrderTimeoutKey, redis.Z{
 				Score:  timeout,
 				Member: order.OrderNo,
 			})

@@ -38,6 +38,7 @@ func newProduct(db *gorm.DB, opts ...gen.DOOption) product {
 	_product.Status = field.NewInt32(tableName, "status")
 	_product.CreatedAt = field.NewTime(tableName, "created_at")
 	_product.UpdatedAt = field.NewTime(tableName, "updated_at")
+	_product.Version = field.NewInt32(tableName, "version")
 
 	_product.fillFieldMap()
 
@@ -59,6 +60,7 @@ type product struct {
 	Status     field.Int32  // 状态: 1-在售, 2-下架, 3-删除
 	CreatedAt  field.Time   // 创建时间
 	UpdatedAt  field.Time   // 更新时间
+	Version    field.Int32  // 乐观锁版本号
 
 	fieldMap map[string]field.Expr
 }
@@ -85,6 +87,7 @@ func (p *product) updateTableName(table string) *product {
 	p.Status = field.NewInt32(table, "status")
 	p.CreatedAt = field.NewTime(table, "created_at")
 	p.UpdatedAt = field.NewTime(table, "updated_at")
+	p.Version = field.NewInt32(table, "version")
 
 	p.fillFieldMap()
 
@@ -109,7 +112,7 @@ func (p *product) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (p *product) fillFieldMap() {
-	p.fieldMap = make(map[string]field.Expr, 10)
+	p.fieldMap = make(map[string]field.Expr, 11)
 	p.fieldMap["id"] = p.ID
 	p.fieldMap["name"] = p.Name
 	p.fieldMap["sub_title"] = p.SubTitle
@@ -120,6 +123,7 @@ func (p *product) fillFieldMap() {
 	p.fieldMap["status"] = p.Status
 	p.fieldMap["created_at"] = p.CreatedAt
 	p.fieldMap["updated_at"] = p.UpdatedAt
+	p.fieldMap["version"] = p.Version
 }
 
 func (p product) clone(db *gorm.DB) product {

@@ -7,20 +7,6 @@ import (
 )
 
 const (
-	StatusCreated   = 0 // 已创建
-	StatusPaid      = 1 // 已支付
-	StatusShipping  = 2 // 已发货
-	StatusCompleted = 3 // 已完成
-	StatusCancelled = 4 // 已取消
-	StatusAfterSale = 5 // 售后中
-
-	SourceApp = 1 // APP
-	SourcePC  = 2 // PC
-	SourceH5  = 3 // H5
-
-	IsDeleted  = 1 // 已删除
-	NotDeleted = 0 // 未删除
-
 	OrdersTableName = "orders"
 )
 

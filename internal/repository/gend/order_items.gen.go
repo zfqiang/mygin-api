@@ -38,6 +38,7 @@ func newOrderItem(db *gorm.DB, opts ...gen.DOOption) orderItem {
 	_orderItem.TotalPrice = field.NewField(tableName, "total_price")
 	_orderItem.CreatedAt = field.NewTime(tableName, "created_at")
 	_orderItem.UpdatedAt = field.NewTime(tableName, "updated_at")
+	_orderItem.Version = field.NewInt32(tableName, "version")
 
 	_orderItem.fillFieldMap()
 
@@ -59,6 +60,7 @@ type orderItem struct {
 	TotalPrice   field.Field  // 小计金额(单价*数量)
 	CreatedAt    field.Time   // 创建时间
 	UpdatedAt    field.Time   // 更新时间
+	Version      field.Int32  // 乐观锁版本号
 
 	fieldMap map[string]field.Expr
 }
@@ -85,6 +87,7 @@ func (o *orderItem) updateTableName(table string) *orderItem {
 	o.TotalPrice = field.NewField(table, "total_price")
 	o.CreatedAt = field.NewTime(table, "created_at")
 	o.UpdatedAt = field.NewTime(table, "updated_at")
+	o.Version = field.NewInt32(table, "version")
 
 	o.fillFieldMap()
 
@@ -111,7 +114,7 @@ func (o *orderItem) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (o *orderItem) fillFieldMap() {
-	o.fieldMap = make(map[string]field.Expr, 10)
+	o.fieldMap = make(map[string]field.Expr, 11)
 	o.fieldMap["id"] = o.ID
 	o.fieldMap["order_no"] = o.OrderNo
 	o.fieldMap["product_id"] = o.ProductID
@@ -122,6 +125,7 @@ func (o *orderItem) fillFieldMap() {
 	o.fieldMap["total_price"] = o.TotalPrice
 	o.fieldMap["created_at"] = o.CreatedAt
 	o.fieldMap["updated_at"] = o.UpdatedAt
+	o.fieldMap["version"] = o.Version
 }
 
 func (o orderItem) clone(db *gorm.DB) orderItem {

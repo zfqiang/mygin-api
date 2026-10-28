@@ -24,6 +24,7 @@ type OrderItem struct {
 	TotalPrice   decimal.Decimal `gorm:"column:total_price;not null;default:0.00;comment:小计金额(单价*数量)" json:"total_price"`     // 小计金额(单价*数量)
 	CreatedAt    time.Time       `gorm:"column:created_at;not null;default:CURRENT_TIMESTAMP;comment:创建时间" json:"created_at"` // 创建时间
 	UpdatedAt    time.Time       `gorm:"column:updated_at;not null;default:CURRENT_TIMESTAMP;comment:更新时间" json:"updated_at"` // 更新时间
+	Version      int32           `gorm:"column:version;comment:乐观锁版本号" json:"version"`                                        // 乐观锁版本号
 }
 
 // TableName OrderItem's table name

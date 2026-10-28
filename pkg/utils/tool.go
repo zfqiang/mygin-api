@@ -2,6 +2,9 @@ package utils
 
 import (
 	"strconv"
+	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 // StrToInt 获取查询参数并转换为 int，如果失败则返回默认值
@@ -58,4 +61,38 @@ func StrToBool(strVal string) (bool, error) {
 // BoolToStr 转换 bool 为 string
 func BoolToStr(val bool) string {
 	return strconv.FormatBool(val)
+}
+
+// decimal库  连个数相乘
+func Int32ToDecimal(val int32) decimal.Decimal {
+	return decimal.NewFromInt32(val)
+}
+
+func Int64ToDecimal(val int64) decimal.Decimal {
+	return decimal.NewFromInt(val)
+}
+
+// GetFormattedDateTime 返回标准日期时间字符串 "YYYY-MM-DD HH:mm:ss"
+func GetFormattedDateTime() string {
+	return time.Now().Format(LayoutDateTime)
+}
+
+// GetFormattedDate 返回纯日期字符串 "YYYY-MM-DD"
+func GetFormattedDate() string {
+	return time.Now().Format(LayoutDateOnly)
+}
+
+// GetFormattedTime 返回纯时间字符串 "HH:mm:ss"
+func GetFormattedTime() string {
+	return time.Now().Format(LayoutTimeOnly)
+}
+
+// GetTimestampSec 返回秒级时间戳
+func GetTimestampSec() int64 {
+	return time.Now().Unix()
+}
+
+// GetTimestampMilli 返回毫秒级时间戳
+func GetTimestampMilli() int64 {
+	return time.Now().UnixMilli()
 }
