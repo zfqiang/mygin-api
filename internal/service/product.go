@@ -3,16 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
-	"mygin-api/internal/model"
+	"mygin-api/internal/repository"
 	"mygin-api/pkg/config"
 	"mygin-api/pkg/utils"
-	"mygin-api/test/fakermodel"
 	"runtime/debug"
-	"time"
-
-	"github.com/go-faker/faker/v4"
-	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 )
 
 // Lua 脚本，原子检查并扣除库存，返回抢购结果
@@ -23,8 +17,8 @@ import (
 // quantity: 抢购数量
 // 返回值:	1: 下单成功 -1: 库存不足 -2: 抢购数量超过库存 -3: 重复下单
 const luaScript = `
-local pscKey = KEY[1]
-local usckey = KEY[2]
+local pscKey = KEYS[1]
+local usckey = KEYS[2]
 local productID = tonumber(ARGV[1])
 local userID = tonumber(ARGV[2])
 local quantity = tonumber(ARGV[3])
@@ -90,71 +84,11 @@ func (o *ProductService) DoSecKill(ctx context.Context, productID int64, userID 
 		return -3, fmt.Errorf("repeat order")
 	}
 
-	//抢购成功，记录到数据库
-	o.appCfg.Logger.Info("order success", "productID", productID, "userID", userID, "quantity", quantity)
-	//扣除商品库存
-	// 1. 获取当前商品状态（用于日志或后续逻辑，非必须用于锁控制，但常用于获取版本号）
-	var product model.Product
-	if err := o.appCfg.DB.Table(model.ProductTableName).
-		Where("ID = ?", productID).
-		First(&product).Error; err != nil {
-		o.appCfg.Logger.Error("get product failed:", "error", err)
-		return 0, fmt.Errorf("get product failed:%v", err)
+	err = repository.NewProductRepository(o.appCfg).DoSecKillSave(ctx, productID, userID, quantity)
+	if err != nil {
+		o.appCfg.Logger.Error("do sec kill save failed:", "error", err)
+		return 0, err
 	}
-
-	// 2. 执行乐观锁更新
-	// 关键：利用 WHERE 条件保证原子性
-	// 方式 A：仅基于库存数量（推荐用于纯库存扣减场景，性能更高）
-	result := o.appCfg.DB.Table(model.ProductTableName).
-		Where("ID = ? AND stock >= ?", productID, quantity).
-		Update("stock", gorm.Expr("stock - ?", quantity))
-	if result.Error != nil {
-		o.appCfg.Logger.Error("update product stock failed:", "error", result.Error)
-		return 0, fmt.Errorf("update product stock failed:%v", result.Error)
-	}
-
-	// 方式 B：基于版本号（适用于需要防止任意字段脏写的场景）
-	// result := tx.Model(&Product{}).
-	// 	Where("ID = ? AND version = ?", productID, product.Version).
-	// 	Updates(map[string]interface{}{
-	// 		"stock":   gorm.Expr("stock - ?", quantity),
-	// 		"version": gorm.Expr("version + 1"),
-	// 	})
-
-	//记录到订单报及附表
-	var order fakermodel.Order
-	faker.FakeData(&order)
-	if err := o.appCfg.DB.Create(&order).Error; err != nil {
-		o.appCfg.Logger.Error("create order failed:", "error", err)
-		return 0, fmt.Errorf("create order failed:%v", err)
-	}
-
-	//计算总价格
-	TotalPrice := product.Price.Mul(utils.Int32ToDecimal(quantity))
-	currentAt := time.Now()
-	var orderItem = fakermodel.OrderItem{
-		OrderNo:      order.OrderNo,
-		ProductID:    productID,
-		ProductName:  product.Name,
-		ProductImage: product.MainImage,
-		CurrentPrice: product.Price,
-		Quantity:     quantity,
-		TotalPrice:   TotalPrice,
-		CreatedAt:    currentAt,
-		UpdatedAt:    currentAt,
-		Version:      1,
-	}
-	if err := o.appCfg.DB.Create(&orderItem).Error; err != nil {
-		o.appCfg.Logger.Error("create order item failed:", "error", err)
-		return 0, fmt.Errorf("create order item failed:%v", err)
-	}
-
-	//推送到超时调度
-	timeout := float64(time.Now().Add(20 * time.Second).UnixNano())
-	o.appCfg.RedisClient.ZAdd(ctx, utils.OrderTimeoutKey, redis.Z{
-		Score:  timeout,
-		Member: order.OrderNo,
-	})
 
 	return 1, nil
 }

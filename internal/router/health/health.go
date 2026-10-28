@@ -26,7 +26,7 @@ func (r *HealthRouter) RegisterRoutes() {
 	// 注册健康检查路由
 	r.registerHealthRoutes()
 	// 注册pprof路由
-	r.registerPprofRoutes()
+	// r.registerPprofRoutes()
 }
 
 // RegisterHealthRoutes 注册健康检查相关的路由

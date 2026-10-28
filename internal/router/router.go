@@ -41,11 +41,11 @@ func (router *RouterCfg) New(appCfg *config.AppConfig) http.Handler {
 
 	// 注册API路由
 	api := api.NewApiRouter(appCfg)
-	api.RegisterAPIRoutes()
+	api.RegisterRoutes()
 
 	// 注册虚拟数据路由
 	gen := gen.NewGenRouter(appCfg)
-	gen.RegisterGenRoutes()
+	gen.RegisterRoutes()
 
 	return engine
 }

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"mygin-api/pkg/config"
@@ -8,7 +9,6 @@ import (
 	"mygin-api/test/fakermodel"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/go-faker/faker/v4"
 	"github.com/redis/go-redis/v9"
 	"github.com/shopspring/decimal"
@@ -22,13 +22,7 @@ func NewOrderService(appCfg *config.AppConfig) *OrderService {
 	return &OrderService{appCfg: appCfg}
 }
 
-func (o *OrderService) GenTestOrderData(c *gin.Context) {
-	count, err := utils.StrToInt(c.DefaultQuery("count", "10"))
-	if err != nil {
-		c.JSON(200, gin.H{"status": "error", "message": err.Error()})
-		o.appCfg.Logger.Error("strconv.Atoi failed:", "error", err)
-		return
-	}
+func (s *OrderService) GenTestOrderData(count int) {
 	orders := make([]fakermodel.Order, count)
 	for i := 0; i < count; i++ {
 		var order fakermodel.Order
@@ -48,12 +42,11 @@ func (o *OrderService) GenTestOrderData(c *gin.Context) {
 		if order.Status == utils.OrderStatusCreated {
 			//加入超时队列--延迟20秒超时
 			timeout := float64(time.Now().Add(20 * time.Second).UnixNano())
-			o.appCfg.RedisClient.ZAdd(c.Request.Context(), utils.OrderTimeoutKey, redis.Z{
+			s.appCfg.RedisClient.ZAdd(context.Background(), utils.OrderTimeoutKey, redis.Z{
 				Score:  timeout,
 				Member: order.OrderNo,
 			})
 		}
 	}
-	o.appCfg.DB.CreateInBatches(&orders, count)
-	c.JSON(200, gin.H{"status": "success"})
+	s.appCfg.DB.CreateInBatches(&orders, count)
 }

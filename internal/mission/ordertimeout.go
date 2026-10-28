@@ -177,10 +177,14 @@ func (o *OrderTimeout) ProcessOrder(ctx context.Context, orderNo string) error {
 		return fmt.Errorf("order %s cannot be cancelled due to current status: %d", orderNo, order.Status)
 	}
 	//更新订单已取消
+	var udata = map[string]interface{}{
+		"status":      utils.OrderStatusCancelled,
+		"cancel_time": time.Now(),
+	}
 	result = o.appCfg.DB.Table(model.OrdersTableName).
 		Where("order_no = ?", orderNo).
 		Where("version = ?", order.Version). //版本号 乐观锁
-		Update("status", utils.OrderStatusCancelled)
+		Updates(udata)
 	if result.Error != nil {
 		return fmt.Errorf("update order %s status failed: %w", orderNo, result.Error)
 	}

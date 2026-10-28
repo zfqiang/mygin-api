@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"mygin-api/internal/model"
 	"mygin-api/internal/service"
 	"mygin-api/pkg/config"
 	"mygin-api/pkg/utils"
@@ -30,9 +31,10 @@ func NewProductController(appCfg *config.AppConfig) *ProductController {
 	return &ProductController{appCfg: appCfg}
 }
 
-func (p *ProductController) handleSecKill(c *gin.Context) {
+func (p *ProductController) HandleSecKill(c *gin.Context) {
 	var param ProductParam
 	if err := c.ShouldBindJSON(&param); err != nil {
+		p.appCfg.Logger.Error("Invalid parameters", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -42,7 +44,7 @@ func (p *ProductController) handleSecKill(c *gin.Context) {
 	count := param.Count
 
 	// 校验参数
-	if productID <= 0 || userID <= 0 {
+	if productID <= 0 || userID <= 0 || count <= 0 {
 		p.appCfg.Logger.Error("Invalid parameters")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parameters"})
 		return
@@ -114,5 +116,25 @@ func (o *ProductController) GenTestProductData(c *gin.Context) {
 		Products[i] = Product
 	}
 	o.appCfg.DB.CreateInBatches(&Products, count)
+	c.JSON(200, gin.H{"status": "success"})
+}
+
+func (o *ProductController) SecKillInit(c *gin.Context) {
+	productID, _ := utils.StrToInt64(c.DefaultQuery("product_id", "1"))
+
+	if productID <= 0 {
+		c.JSON(200, gin.H{"status": "error", "message": "Invalid product_id"})
+		return
+	}
+	// 查询商品信息
+	var product model.Product
+	if err := o.appCfg.DB.Select("id, stock").Where("id = ?", productID).Where("stock > 0").First(&product).Error; err != nil {
+		c.JSON(200, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+
+	//初始化到抢购的redis里面
+	pscKey := utils.GetProductSeckillKey(productID)
+	o.appCfg.RedisClient.Set(context.Background(), pscKey, product.Stock, 0)
 	c.JSON(200, gin.H{"status": "success"})
 }
