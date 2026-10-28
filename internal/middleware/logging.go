@@ -4,19 +4,19 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"mygin-api/pkg/logging"
 )
 
-func RequestLogger(logger *zap.SugaredLogger) gin.HandlerFunc {
+func RequestLogger(logger *logging.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()
 
-		logger.Info("http request",
+		logger.Info("HTTP 请求完成",
 			"method", c.Request.Method,
 			"path", c.Request.URL.Path,
 			"status", c.Writer.Status(),
-			"latency", time.Since(start),
+			"duration", time.Since(start),
 			"client_ip", c.ClientIP(),
 		)
 	}

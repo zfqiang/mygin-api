@@ -22,16 +22,16 @@ import (
 func main() {
 	loggers, err := logging.New("./logs")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "initialize loggers:", err)
+		fmt.Fprintln(os.Stderr, "日志器初始化失败:", err)
 		os.Exit(1)
 	}
 	if err := run(loggers); err != nil {
-		loggers.System.Error("server stopped", "error", err)
+		loggers.System.Errorf("HTTP 服务异常退出 | error=%v", err)
 		_ = loggers.Close()
 		os.Exit(1)
 	}
 	if err := loggers.Close(); err != nil {
-		fmt.Fprintln(os.Stderr, "flush logs:", err)
+		fmt.Fprintln(os.Stderr, "日志刷新失败:", err)
 		os.Exit(1)
 	}
 }
@@ -103,7 +103,7 @@ func run(loggers *logging.Loggers) error {
 	serverErr := make(chan error, 1)
 	// 启动一个 goroutine 来运行 HTTP 服务器，并将错误发送到错误通道
 	go func() {
-		loggers.System.Info("server starting", "address", server.Addr, "mode", cfg.Mode)
+		loggers.System.Info("HTTP 服务启动", "address", server.Addr, "mode", cfg.Mode)
 		serverErr <- server.ListenAndServe()
 	}()
 

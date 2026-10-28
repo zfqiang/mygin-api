@@ -8,9 +8,9 @@ import (
 
 	"mygin-api/internal/middleware"
 	"mygin-api/pkg/config"
+	"mygin-api/pkg/logging"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -57,7 +57,7 @@ type LoginHandler struct {
 	secret []byte
 	issuer string
 	ttl    time.Duration
-	logger *zap.SugaredLogger
+	logger *logging.Logger
 }
 
 func NewLoginHandler(appCfg *config.AppConfig) *LoginHandler {
@@ -95,7 +95,7 @@ func (h *LoginHandler) Login(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		h.logger.Error("login user lookup failed", "error", err)
+		h.logger.Errorf("登录时查询用户失败 | error=%v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}
@@ -106,7 +106,7 @@ func (h *LoginHandler) Login(c *gin.Context) {
 
 	token, err := middleware.IssueToken(user.ID, h.secret, h.issuer, h.ttl)
 	if err != nil {
-		h.logger.Error("login token creation failed", "error", err)
+		h.logger.Errorf("登录令牌生成失败 | error=%v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 		return
 	}

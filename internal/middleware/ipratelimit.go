@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 	"golang.org/x/time/rate"
+	"mygin-api/pkg/logging"
 )
 
 type IPRateLimiter struct {
@@ -86,7 +86,7 @@ func (i *IPRateLimiter) cleanup(ttl time.Duration) {
 }
 
 // RateLimitMiddleware Gin 中间件入口
-func RateLimitMiddleware(limit rate.Limit, burst int, logger *zap.SugaredLogger) gin.HandlerFunc {
+func RateLimitMiddleware(limit rate.Limit, burst int, logger *logging.Logger) gin.HandlerFunc {
 	// 初始化：每秒 5 个请求，突发容忍 10 个
 	limiterManager := NewIPRateLimiter(limit, burst)
 
@@ -98,7 +98,10 @@ func RateLimitMiddleware(limit rate.Limit, burst int, logger *zap.SugaredLogger)
 
 		// 尝试获取令牌
 		if !l.Allow() {
-			logger.Info("rate limit exceeded for IP: " + ip)
+			logger.Warn("请求触发 IP 限流",
+				"client_ip", ip,
+				"path", c.Request.URL.Path,
+			)
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error": "rate limit exceeded for IP: " + ip,
 			})

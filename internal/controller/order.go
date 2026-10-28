@@ -20,7 +20,7 @@ func (o *OrderService) GenTestOrderData(c *gin.Context) {
 	count, err := utils.StrToInt(c.DefaultQuery("count", "10"))
 	if err != nil {
 		c.JSON(200, gin.H{"status": "error", "message": err.Error()})
-		o.appCfg.Logger.Error("strconv.Atoi failed:", "error", err)
+		o.appCfg.Logger.Warn("生成测试订单数据时数量参数无效", "error", err)
 		return
 	}
 	service.NewOrderService(o.appCfg).GenTestOrderData(count)

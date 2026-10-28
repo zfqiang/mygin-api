@@ -10,8 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"mygin-api/pkg/logging"
 )
 
 type Config struct {
@@ -50,7 +50,7 @@ type AppConfig struct {
 	Cfg         *Config
 	DB          *gorm.DB
 	RedisClient *redis.Client
-	Logger      *zap.SugaredLogger
+	Logger      *logging.Logger
 }
 
 func Load() (Config, error) {

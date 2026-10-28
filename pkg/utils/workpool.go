@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/panjf2000/ants/v2"
-	"go.uber.org/zap"
+	"mygin-api/pkg/logging"
 )
 
 // Workpool is a work pool
@@ -13,7 +13,7 @@ type Workpool struct {
 }
 
 // 创建一个工作池，指定工作池大小，并返回一个 Workpool 对象
-func NewWorkpool(size int, expiryDuration time.Duration, logger *zap.SugaredLogger) (*Workpool, error) {
+func NewWorkpool(size int, expiryDuration time.Duration, logger *logging.Logger) (*Workpool, error) {
 
 	// WithNonblocking: 默认行为 (false)‌：‌阻塞模式‌,‌当工作池已满时，Submit 会阻塞直到有空闲的 worker 可用。
 	// WithNonblocking(true): 非阻塞模式，当工作池已满时，Submit 会立即返回一个 error。
@@ -27,14 +27,14 @@ func NewWorkpool(size int, expiryDuration time.Duration, logger *zap.SugaredLogg
 		ants.WithPreAlloc(false),
 		ants.WithExpiryDuration(expiryDuration),
 		ants.WithPanicHandler(func(p interface{}) {
-			logger.Error("Task panicked", "panicked", p)
+			logger.Errorf("工作池任务发生 panic | panic=%v", p)
 		}))
 	if err != nil {
-		logger.Error("Failed to create ants pool:", "error", err)
+		logger.Errorf("创建工作池失败 | error=%v", err)
 		return nil, err
 
 	}
-	logger.Info("Ants pool initialized", "size", size, "expiryDuration", expiryDuration)
+	logger.Info("工作池初始化完成", "capacity", size, "idle_timeout", expiryDuration)
 	workPool := &Workpool{
 		GlobalPool: pool,
 	}

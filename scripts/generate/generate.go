@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"mygin-api/pkg/config"
@@ -17,12 +18,12 @@ import (
 func main() {
 	loggers, err := logging.New("logs")
 	if err != nil {
-		fmt.Println("Failed to initialize loggers:", err)
+		fmt.Fprintln(os.Stderr, "初始化代码生成日志失败:", err)
 		return
 	}
 	defer func() {
 		if err := loggers.Close(); err != nil {
-			fmt.Println("Failed to flush logs:", err)
+			fmt.Fprintln(os.Stderr, "刷新代码生成日志失败:", err)
 		}
 	}()
 
@@ -41,7 +42,7 @@ func main() {
 	// 加载配置文件，如果加载失败则返回错误
 	cfg, err := config.Load()
 	if err != nil {
-		fmt.Println("Failed to load config:", err)
+		loggers.System.Errorf("代码生成工具加载配置失败 | error=%v", err)
 		return
 	}
 
@@ -52,14 +53,15 @@ func main() {
 	// 初始化数据库连接，如果连接失败则返回错误
 	db, err := database.Open(startupCtx, cfg.MySQL, loggers.Database)
 	if err != nil {
-		fmt.Println("Failed to open database:", err)
+		loggers.System.Errorf("代码生成工具连接数据库失败 | error=%v", err)
 		return
 	}
 
 	// 确保程序退出时关闭数据库连接，防止资源泄漏
 	sqlDB, err := db.DB()
 	if err != nil {
-		panic(fmt.Errorf("cannot get underlying sql.DB: %w", err))
+		loggers.System.Errorf("代码生成工具获取数据库连接池失败 | error=%v", err)
+		return
 	}
 	defer sqlDB.Close()
 

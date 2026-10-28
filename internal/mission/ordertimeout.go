@@ -30,31 +30,30 @@ func NewOrderTimeout(appCfg *config.AppConfig) *OrderTimeout {
 
 func (o *OrderTimeout) Shutdown() {
 	o.wg.Wait()
-	o.appCfg.Logger.Info("All orders processed and pool released.")
+	o.appCfg.Logger.Info("订单超时处理任务已停止")
 }
 
 func (o *OrderTimeout) Run(ctx context.Context) {
 	defer func() {
 		if r := recover(); r != nil {
 			// 增加调用栈打印，便于定位线上问题
-			o.appCfg.Logger.Error("OrderTimeout Run panic", "error", r, "stack", debug.Stack())
+			o.appCfg.Logger.Errorf("订单超时处理任务发生 panic | panic=%v | stack=%s", r, string(debug.Stack()))
 		}
 	}()
 
 	// 创建协程池
 	poolSize := o.appCfg.Cfg.WorkPoolSize
 	if poolSize <= 0 {
-		o.appCfg.Logger.Error("Invalid workpool size", "poolSize", poolSize)
+		o.appCfg.Logger.Errorf("订单超时任务工作池容量配置无效 | pool_size=%d", poolSize)
 		return
 	}
 	poolIdleTimeout := o.appCfg.Cfg.WorkPoolIdleTimeout
 	if poolIdleTimeout <= 0 {
-		o.appCfg.Logger.Error("Invalid workpool idle timeout", "poolIdleTimeout", poolIdleTimeout)
+		o.appCfg.Logger.Errorf("订单超时任务工作池空闲超时配置无效 | idle_timeout=%s", poolIdleTimeout)
 		return
 	}
 	pool, err := utils.NewWorkpool(poolSize, poolIdleTimeout, o.appCfg.Logger)
 	if err != nil {
-		o.appCfg.Logger.Error("Failed to create workpool", "error", err)
 		return
 	}
 	// 确保退出时释放协程池资源，防止 Goroutine 泄漏
@@ -67,7 +66,7 @@ func (o *OrderTimeout) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			o.appCfg.Logger.Info("OrderTimeout context done")
+			o.appCfg.Logger.Info("订单超时处理任务收到停止信号")
 			return
 		case <-ticker.C:
 			o.SubmitOrder(ctx, pool)
@@ -89,7 +88,7 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 		Count:  10,
 	}).Result()
 	if err != nil {
-		o.appCfg.Logger.Error("Failed to get orders from redis", "error", err)
+		o.appCfg.Logger.Errorf("从 Redis 获取待处理超时订单失败 | error=%v", err)
 		return err
 	}
 
@@ -103,7 +102,7 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 		// 使用 ZREM 的返回值判断是否成功移除，防止并发重复处理
 		_, err := o.appCfg.RedisClient.ZRem(ctx, utils.OrderTimeoutKey, currentOrderNo).Result()
 		if err != nil {
-			o.appCfg.Logger.Error("Failed to remove order from redis", "error", err)
+			o.appCfg.Logger.Errorf("从 Redis 超时队列移除订单失败 | order_no=%s | error=%v", currentOrderNo, err)
 			continue
 		}
 
@@ -118,10 +117,9 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 					// 为每个任务创建独立的子上下文，或者共享父上下文
 					// 这里使用共享上下文，以便主程序取消时所有任务都能感知
 					if err := o.ProcessOrder(ctx, orderNo); err != nil {
-						o.appCfg.Logger.Error("Final failure for order", "orderNo", orderNo, "error", err)
 						return err
 					}
-					o.appCfg.Logger.Info("Order processed successfully", "orderNo", orderNo)
+					o.appCfg.Logger.Info("超时订单处理成功", "order_no", orderNo)
 					return nil
 				},
 				retry.Context(ctx),                // 支持上下文取消
@@ -129,7 +127,11 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 				retry.Delay(500*time.Millisecond), // 基础延迟
 				retry.MaxDelay(2*time.Second),     // 最大延迟
 				retry.OnRetry(func(n uint, err error) {
-					o.appCfg.Logger.Warn("[Retry] Order attempt failed ", "orderNo", orderNo, "attempt", n+1, "error", err)
+					o.appCfg.Logger.Warn("超时订单处理失败，准备重试",
+						"order_no", orderNo,
+						"attempt", n+1,
+						"error", err,
+					)
 				}),
 				retry.RetryIf(func(err error) bool {
 					// 仅对特定错误进行重试，例如网络超时或临时服务器错误
@@ -138,7 +140,7 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 				}),
 			)
 			if err != nil {
-				o.appCfg.Logger.Error("Failed to process order", "orderNo", orderNo, "error", err)
+				o.appCfg.Logger.Errorf("超时订单处理最终失败 | order_no=%s | error=%v", orderNo, err)
 				return
 			}
 
@@ -146,7 +148,7 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 		o.wg.Wait()
 		if err != nil {
 			o.wg.Done() // 提交失败时必须手动递减，防止 WaitGroup 死锁
-			o.appCfg.Logger.Error("Failed to submit order to pool", "orderNo", currentOrderNo, "error", err)
+			o.appCfg.Logger.Errorf("提交超时订单到工作池失败 | order_no=%s | error=%v", currentOrderNo, err)
 			// 提交失败，将订单重新加回队列，防止数据丢失
 			o.appCfg.RedisClient.ZAdd(ctx, utils.OrderTimeoutKey, redis.Z{
 				Score:  now,
@@ -174,7 +176,7 @@ func (o *OrderTimeout) ProcessOrder(ctx context.Context, orderNo string) error {
 	}
 	//判断订单是否已支付或已完成
 	if order.Status == 1 || order.Status == 3 {
-		return fmt.Errorf("order %s cannot be cancelled due to current status: %d", orderNo, order.Status)
+		return fmt.Errorf("订单 %s 当前状态为 %d，不能取消", orderNo, order.Status)
 	}
 	//更新订单已取消
 	var udata = map[string]interface{}{
@@ -186,12 +188,12 @@ func (o *OrderTimeout) ProcessOrder(ctx context.Context, orderNo string) error {
 		Where("version = ?", order.Version). //版本号 乐观锁
 		Updates(udata)
 	if result.Error != nil {
-		return fmt.Errorf("update order %s status failed: %w", orderNo, result.Error)
+		return fmt.Errorf("更新订单 %s 状态失败: %w", orderNo, result.Error)
 	}
 
 	// 处理乐观锁冲突：影响行数为0说明在此期间订单已被其他进程修改
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("update order %s conflict: version mismatch", orderNo)
+		return fmt.Errorf("更新订单 %s 失败: 版本号冲突", orderNo)
 	}
 	return nil
 }

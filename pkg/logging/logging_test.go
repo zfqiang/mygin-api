@@ -5,7 +5,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
+
+var _ interface {
+	Info(...any)
+	Warn(...any)
+	Errorf(string, ...any)
+	Fatal(...any)
+	Logf(string, ...any)
+} = (*Logger)(nil)
 
 func TestNewSeparatesLogCategories(t *testing.T) {
 	directory := t.TempDir()
@@ -15,13 +24,16 @@ func TestNewSeparatesLogCategories(t *testing.T) {
 	}
 	defer loggers.Close()
 
-	loggers.System.Info("system marker")
-	loggers.Database.Info("database marker")
-	loggers.Redis.Info("redis marker")
+	loggers.System.Info("system marker", "request_id", "req-123")
+	loggers.System.Warn("warning marker")
+	loggers.System.Errorf("%s", "error marker")
+	loggers.System.Errorf("formatted error: %s", "failure")
+	loggers.System.Logf("formatted marker: %s", "logf")
+	loggers.Database.Info("database marker", "query", "SELECT 1")
+	loggers.Redis.Info("redis marker", "command", "PING")
 	if err := loggers.Sync(); err != nil {
 		t.Fatal(err)
 	}
-
 	want := map[string]string{
 		"system.log":   "system marker",
 		"database.log": "database marker",
@@ -37,6 +49,36 @@ func TestNewSeparatesLogCategories(t *testing.T) {
 		if !strings.Contains(string(content), marker) {
 			t.Errorf("%s does not contain its category marker", filename)
 		}
+		if !strings.Contains(string(content), time.Now().Format("2006-01-02T")) {
+			t.Errorf("%s does not contain an ISO-formatted timestamp", filename)
+		}
+		if !strings.Contains(string(content), "INFO") {
+			t.Errorf("%s does not contain a formatted log level", filename)
+		}
+	}
+	systemContent := contents["system.log"]
+	for _, marker := range []string{"WARN", "ERROR", "formatted error: failure", "formatted marker: logf"} {
+		if !strings.Contains(systemContent, marker) {
+			t.Errorf("system log does not contain %q", marker)
+		}
+	}
+	if !strings.Contains(systemContent, "logging_test.go") {
+		t.Fatal("logger wrapper did not preserve the original caller location")
+	}
+	if !strings.Contains(contents["system.log"], "request_id") ||
+		!strings.Contains(contents["database.log"], "query") ||
+		!strings.Contains(contents["redis.log"], "command") {
+		t.Fatal("structured fields were not included in formatted logs")
+	}
+	for _, expected := range []string{
+		"INFO | system |",
+		"system marker | request_id=req-123",
+		"formatted error: failure",
+		"formatted marker: logf",
+	} {
+		if !strings.Contains(contents["system.log"], expected) {
+			t.Errorf("system log does not contain formatted output %q", expected)
+		}
 	}
 	for filename, content := range contents {
 		for otherFile, marker := range want {
@@ -44,5 +86,19 @@ func TestNewSeparatesLogCategories(t *testing.T) {
 				t.Errorf("%s contains the %s marker", filename, otherFile)
 			}
 		}
+	}
+}
+
+func TestFormatMessageRendersReadableFields(t *testing.T) {
+	got := formatMessage([]any{
+		"request finished",
+		"method", "GET",
+		"path", "/api/v1/orders",
+		"error", "connection timed out",
+		"attempt",
+	})
+	want := `request finished | method=GET | path=/api/v1/orders | error="connection timed out" | attempt=<missing>`
+	if got != want {
+		t.Fatalf("formatMessage() = %q, want %q", got, want)
 	}
 }

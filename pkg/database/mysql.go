@@ -7,15 +7,14 @@ import (
 	"time"
 
 	"mygin-api/pkg/config"
+	"mygin-api/pkg/logging"
 
 	mysqlDriverConfig "github.com/go-sql-driver/mysql"
-	"go.uber.org/zap"
 	mysqlDriver "gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
-func Open(ctx context.Context, cfg config.MySQLConfig, dbLogger *zap.Logger) (*gorm.DB, error) {
+func Open(ctx context.Context, cfg config.MySQLConfig, dbLogger *logging.Logger) (*gorm.DB, error) {
 	dsnConfig := mysqlDriverConfig.Config{
 		User:                 cfg.User,
 		Passwd:               cfg.Password,
@@ -29,12 +28,7 @@ func Open(ctx context.Context, cfg config.MySQLConfig, dbLogger *zap.Logger) (*g
 	}
 	dsn := dsnConfig.FormatDSN()
 	db, err := gorm.Open(mysqlDriver.Open(dsn), &gorm.Config{
-		Logger: logger.New(zap.NewStdLog(dbLogger), logger.Config{
-			SlowThreshold:        200 * time.Millisecond,
-			LogLevel:             logger.Warn,
-			ParameterizedQueries: true,
-			Colorful:             false,
-		}),
+		Logger: newGormLogger(dbLogger),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("open MySQL connection: %w", err)

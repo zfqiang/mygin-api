@@ -20,16 +20,16 @@ import (
 func main() {
 	loggers, err := logging.New("logs")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "initialize loggers:", err)
+		fmt.Fprintln(os.Stderr, "日志器初始化失败:", err)
 		os.Exit(1)
 	}
 	if err := run(loggers); err != nil {
-		loggers.System.Error("schedule stopped", "error", err)
+		loggers.System.Errorf("定时任务服务异常退出 | error=%v", err)
 		_ = loggers.Close()
 		os.Exit(1)
 	}
 	if err := loggers.Close(); err != nil {
-		fmt.Fprintln(os.Stderr, "flush logs:", err)
+		fmt.Fprintln(os.Stderr, "日志刷新失败:", err)
 		os.Exit(1)
 	}
 }
@@ -108,7 +108,7 @@ func run(loggers *logging.Loggers) error {
 	// 3. 阻塞主线程，等待信号或上下文取消
 	select {
 	case sig := <-sigChan:
-		loggers.System.Info("received termination signal; starting graceful shutdown", "signal", sig.String())
+		loggers.System.Info("收到终止信号，开始优雅关闭", "signal", sig.String())
 		cancel() // 触发所有监听 ctx.Done() 的协程退出
 	case <-ctx.Done():
 		// 防止其他逻辑意外取消 context
@@ -124,9 +124,9 @@ func run(loggers *logging.Loggers) error {
 
 	select {
 	case <-done:
-		loggers.System.Info("all background tasks stopped")
+		loggers.System.Info("所有后台任务已停止")
 	case <-time.After(10 * time.Second):
-		loggers.System.Warn("timed out waiting for background tasks to stop")
+		loggers.System.Warn("等待后台任务停止超时", "timeout", 10*time.Second)
 	}
 	return nil
 }

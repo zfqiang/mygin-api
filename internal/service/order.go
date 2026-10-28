@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"mygin-api/pkg/config"
 	"mygin-api/pkg/utils"
@@ -27,7 +26,10 @@ func (s *OrderService) GenTestOrderData(count int) {
 	for i := 0; i < count; i++ {
 		var order fakermodel.Order
 		faker.FakeData(&order)
-		fmt.Printf("order: %+v\n", order)
+		s.appCfg.Logger.Info("生成测试订单数据",
+			"order_no", order.OrderNo,
+			"user_id", order.UserID,
+		)
 
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 

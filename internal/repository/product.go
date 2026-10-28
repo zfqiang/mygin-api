@@ -24,15 +24,19 @@ func NewProductRepository(appCfg *config.AppConfig) *ProductRepository {
 
 func (r *ProductRepository) DoSecKillSave(ctx context.Context, productID int64, userID int64, quantity int32) error {
 	//抢购成功，记录到数据库
-	r.appCfg.Logger.Info("order success", "productID", productID, "userID", userID, "quantity", quantity)
+	r.appCfg.Logger.Info("秒杀订单已通过 Redis 校验，开始写入数据库",
+		"product_id", productID,
+		"user_id", userID,
+		"quantity", quantity,
+	)
 	//扣除商品库存
 	// 1. 获取当前商品状态（用于日志或后续逻辑，非必须用于锁控制，但常用于获取版本号）
 	var product model.Product
 	if err := r.appCfg.DB.Table(model.ProductTableName).
 		Where("ID = ?", productID).
 		First(&product).Error; err != nil {
-		r.appCfg.Logger.Error("get product failed:", "error", err)
-		return fmt.Errorf("get product failed:%v", err)
+		r.appCfg.Logger.Errorf("查询秒杀商品失败 | product_id=%d | error=%v", productID, err)
+		return fmt.Errorf("查询秒杀商品失败: %w", err)
 	}
 
 	// 2. 执行乐观锁更新
@@ -42,8 +46,8 @@ func (r *ProductRepository) DoSecKillSave(ctx context.Context, productID int64, 
 		Where("ID = ? AND stock >= ?", productID, quantity).
 		Update("stock", gorm.Expr("stock - ?", quantity))
 	if result.Error != nil {
-		r.appCfg.Logger.Error("update product stock failed:", "error", result.Error)
-		return fmt.Errorf("update product stock failed:%v", result.Error)
+		r.appCfg.Logger.Errorf("扣减商品库存失败 | product_id=%d | quantity=%d | error=%v", productID, quantity, result.Error)
+		return fmt.Errorf("扣减商品库存失败: %w", result.Error)
 	}
 
 	// 方式 B：基于版本号（适用于需要防止任意字段脏写的场景）
@@ -65,8 +69,8 @@ func (r *ProductRepository) DoSecKillSave(ctx context.Context, productID int64, 
 	order.TotalAmount = TotalPrice
 	order.CreateTime = currentAt
 	if err := r.appCfg.DB.Create(&order).Error; err != nil {
-		r.appCfg.Logger.Error("create order failed:", "error", err)
-		return fmt.Errorf("create order failed:%v", err)
+		r.appCfg.Logger.Errorf("创建秒杀订单失败 | product_id=%d | user_id=%d | error=%v", productID, userID, err)
+		return fmt.Errorf("创建秒杀订单失败: %w", err)
 	}
 
 	var orderItem = fakermodel.OrderItem{
@@ -82,8 +86,8 @@ func (r *ProductRepository) DoSecKillSave(ctx context.Context, productID int64, 
 		Version:      1,
 	}
 	if err := r.appCfg.DB.Create(&orderItem).Error; err != nil {
-		r.appCfg.Logger.Error("create order item failed:", "error", err)
-		return fmt.Errorf("create order item failed:%v", err)
+		r.appCfg.Logger.Errorf("创建秒杀订单明细失败 | order_no=%s | error=%v", order.OrderNo, err)
+		return fmt.Errorf("创建秒杀订单明细失败: %w", err)
 	}
 
 	//推送到超时调度

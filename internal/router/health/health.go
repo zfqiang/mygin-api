@@ -53,21 +53,21 @@ func (r *HealthRouter) registerHealthRoutes() {
 		sqlDB, err := r.appCfg.DB.DB()
 		if err != nil {
 			// 记录MySQL检查失败的日志
-			r.appCfg.Logger.Error("readiness check failed", "dependency", "mysql", "error", err)
+			r.appCfg.Logger.Errorf("就绪检查失败 | dependency=MySQL | error=%v", err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
 			return
 		}
 		// 检查MySQL连接是否可用
 		if err := sqlDB.PingContext(ctx); err != nil {
 			// 记录MySQL连接检查失败的日志
-			r.appCfg.Logger.Error("readiness check failed", "dependency", "mysql", "error", err)
+			r.appCfg.Logger.Errorf("就绪检查失败 | dependency=MySQL | error=%v", err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
 			return
 		}
 		// 检查Redis连接是否可用
 		if err := r.appCfg.RedisClient.Ping(ctx).Err(); err != nil {
 			// 记录Redis检查失败的日志
-			r.appCfg.Logger.Error("readiness check failed", "dependency", "redis", "error", err)
+			r.appCfg.Logger.Errorf("就绪检查失败 | dependency=Redis | error=%v", err)
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
 			return
 		}

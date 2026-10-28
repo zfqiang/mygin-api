@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"mygin-api/internal/model"
 	"mygin-api/internal/service"
@@ -34,7 +33,7 @@ func NewProductController(appCfg *config.AppConfig) *ProductController {
 func (p *ProductController) HandleSecKill(c *gin.Context) {
 	var param ProductParam
 	if err := c.ShouldBindJSON(&param); err != nil {
-		p.appCfg.Logger.Error("Invalid parameters", "error", err)
+		p.appCfg.Logger.Warn("秒杀请求参数解析失败", "error", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -45,7 +44,11 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 
 	// 校验参数
 	if productID <= 0 || userID <= 0 || count <= 0 {
-		p.appCfg.Logger.Error("Invalid parameters")
+		p.appCfg.Logger.Warn("秒杀请求参数无效",
+			"product_id", productID,
+			"user_id", userID,
+			"quantity", count,
+		)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parameters"})
 		return
 	}
@@ -57,13 +60,17 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 	uscKey := utils.GetUserSeckillKey(productID)
 	result, err := p.appCfg.RedisClient.SIsMember(ctx, uscKey, userID).Result()
 	if err != nil {
-		p.appCfg.Logger.Error("Redis error: SIsMember", "productID", productID, "userID", userID, "error", err)
+		p.appCfg.Logger.Errorf("查询用户秒杀记录失败 | redis_command=SISMEMBER | product_id=%d | user_id=%d | error=%v",
+			productID, userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Redis error: SIsMember"})
 		return
 	}
 
 	if result {
-		p.appCfg.Logger.Warn("User has already bought the product", "productID", productID, "userID", userID)
+		p.appCfg.Logger.Warn("用户已参与该商品秒杀",
+			"product_id", productID,
+			"user_id", userID,
+		)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "用户已购抢购过该商品"})
 		return
 	}
@@ -74,10 +81,11 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 	go func() {
 		resp, err := service.NewProductService(p.appCfg).DoSecKill(ctx, productID, userID, count)
 		if err != nil {
-			p.appCfg.Logger.Error("DoSecKill error", "productID", productID, "userID", userID, "count", count, "error", err)
-
 			//抢购失败，从redis中删除记录
-			p.appCfg.RedisClient.SRem(ctx, uscKey, userID)
+			if cleanupErr := p.appCfg.RedisClient.SRem(ctx, uscKey, userID).Err(); cleanupErr != nil {
+				p.appCfg.Logger.Errorf("秒杀失败后清理用户记录失败 | product_id=%d | user_id=%d | error=%v",
+					productID, userID, cleanupErr)
+			}
 		}
 		resultChan <- resp
 	}()
@@ -100,20 +108,23 @@ func (o *ProductController) GenTestProductData(c *gin.Context) {
 	count, err := utils.StrToInt(c.DefaultQuery("count", "10"))
 	if err != nil {
 		c.JSON(200, gin.H{"status": "error", "message": err.Error()})
-		o.appCfg.Logger.Error("strconv.Atoi failed:", "error", err)
+		o.appCfg.Logger.Warn("生成测试商品数据时数量参数无效", "error", err)
 		return
 	}
 	Products := make([]fakermodel.Product, count)
 	for i := 0; i < count; i++ {
 		var Product fakermodel.Product
 		faker.FakeData(&Product)
-		fmt.Printf("Product: %+v\n", Product)
-
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 		Product.Status = 1
 		Product.Price = decimal.NewFromFloat(float64(r.Intn(1000))).Round(2)
 		Products[i] = Product
+		o.appCfg.Logger.Info("生成测试商品数据",
+			"product_name", Product.Name,
+			"category_id", Product.CategoryID,
+			"price", Product.Price,
+		)
 	}
 	o.appCfg.DB.CreateInBatches(&Products, count)
 	c.JSON(200, gin.H{"status": "success"})

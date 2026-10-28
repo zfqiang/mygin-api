@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"mygin-api/pkg/config"
+	"mygin-api/pkg/logging"
 
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 )
 
-func Open(ctx context.Context, cfg config.RedisConfig, redisLogger *zap.Logger) (*redis.Client, error) {
+func Open(ctx context.Context, cfg config.RedisConfig, redisLogger *logging.Logger) (*redis.Client, error) {
 	client := redis.NewClient(&redis.Options{
 		Addr:     cfg.Addr,
 		Password: cfg.Password,
@@ -27,7 +27,7 @@ func Open(ctx context.Context, cfg config.RedisConfig, redisLogger *zap.Logger) 
 }
 
 type redisLoggingHook struct {
-	logger *zap.Logger
+	logger *logging.Logger
 }
 
 func (h redisLoggingHook) DialHook(next redis.DialHook) redis.DialHook {
@@ -35,18 +35,14 @@ func (h redisLoggingHook) DialHook(next redis.DialHook) redis.DialHook {
 		start := time.Now()
 		conn, err := next(ctx, network, addr)
 		if err != nil {
-			h.logger.Error("Redis connection failed",
-				zap.String("network", network),
-				zap.String("address", addr),
-				zap.Duration("duration", time.Since(start)),
-				zap.Error(err),
-			)
+			h.logger.Errorf("Redis 连接失败 | network=%s | address=%s | duration=%s | error=%v",
+				network, addr, time.Since(start), err)
 			return nil, err
 		}
-		h.logger.Info("Redis connected",
-			zap.String("network", network),
-			zap.String("address", addr),
-			zap.Duration("duration", time.Since(start)),
+		h.logger.Info("Redis 连接成功",
+			"network", network,
+			"address", addr,
+			"duration", time.Since(start),
 		)
 		return conn, nil
 	}
@@ -56,15 +52,14 @@ func (h redisLoggingHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook 
 	return func(ctx context.Context, cmd redis.Cmder) error {
 		start := time.Now()
 		err := next(ctx, cmd)
-		fields := []zap.Field{
-			zap.String("command", cmd.Name()),
-			zap.Duration("duration", time.Since(start)),
-		}
 		if err != nil && err != redis.Nil {
-			fields = append(fields, zap.Error(err))
-			h.logger.Error("Redis command failed", fields...)
+			h.logger.Errorf("Redis 命令执行失败 | command=%s | duration=%s | error=%v",
+				cmd.Name(), time.Since(start), err)
 		} else {
-			h.logger.Info("Redis command", fields...)
+			h.logger.Info("Redis 命令执行完成",
+				"command", cmd.Name(),
+				"duration", time.Since(start),
+			)
 		}
 		return err
 	}
@@ -78,16 +73,15 @@ func (h redisLoggingHook) ProcessPipelineHook(next redis.ProcessPipelineHook) re
 		for i, cmd := range cmds {
 			commands[i] = cmd.Name()
 		}
-		fields := []zap.Field{
-			zap.Strings("commands", commands),
-			zap.Int("command_count", len(cmds)),
-			zap.Duration("duration", time.Since(start)),
-		}
 		if err != nil && err != redis.Nil {
-			fields = append(fields, zap.Error(err))
-			h.logger.Error("Redis pipeline failed", fields...)
+			h.logger.Errorf("Redis Pipeline 执行失败 | commands=%v | command_count=%d | duration=%s | error=%v",
+				commands, len(cmds), time.Since(start), err)
 		} else {
-			h.logger.Info("Redis pipeline", fields...)
+			h.logger.Info("Redis Pipeline 执行完成",
+				"commands", commands,
+				"command_count", len(cmds),
+				"duration", time.Since(start),
+			)
 		}
 		return err
 	}

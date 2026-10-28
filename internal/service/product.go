@@ -60,7 +60,7 @@ func NewProductService(appCfg *config.AppConfig) *ProductService {
 func (o *ProductService) DoSecKill(ctx context.Context, productID int64, userID int64, quantity int32) (int, error) {
 	defer func() {
 		if r := recover(); r != nil {
-			o.appCfg.Logger.Error("panic recovered:", "error", r, "stack", debug.Stack)
+			o.appCfg.Logger.Errorf("执行商品秒杀时发生 panic | panic=%v | stack=%s", r, string(debug.Stack()))
 		}
 	}()
 
@@ -69,24 +69,36 @@ func (o *ProductService) DoSecKill(ctx context.Context, productID int64, userID 
 	usckey := utils.GetUserSeckillKey(productID)
 	resp, err := o.appCfg.RedisClient.Eval(ctx, luaScript, []string{pscKey, usckey}, productID, userID, quantity).Result()
 	if err != nil {
-		o.appCfg.Logger.Error("redis eval failed:", "error", err)
+		o.appCfg.Logger.Errorf("执行 Redis 秒杀脚本失败 | product_id=%d | user_id=%d | quantity=%d | error=%v",
+			productID, userID, quantity, err)
 		return 0, err
 	}
 	switch resp.(int64) {
 	case -1:
-		o.appCfg.Logger.Error("stock not enough", "productID", productID, "userID", userID, "quantity", quantity)
-		return -1, fmt.Errorf("stock not enough")
+		o.appCfg.Logger.Warn("商品库存不足",
+			"product_id", productID,
+			"user_id", userID,
+			"quantity", quantity,
+		)
+		return -1, fmt.Errorf("商品库存不足")
 	case -2:
-		o.appCfg.Logger.Error("buy quantity over stock", "productID", productID, "userID", userID, "quantity", quantity)
-		return -2, fmt.Errorf("buy quantity over stock")
+		o.appCfg.Logger.Warn("购买数量超过剩余库存",
+			"product_id", productID,
+			"user_id", userID,
+			"quantity", quantity,
+		)
+		return -2, fmt.Errorf("购买数量超过剩余库存")
 	case -3:
-		o.appCfg.Logger.Error("repeat order", "productID", productID, "userID", userID, "quantity", quantity)
-		return -3, fmt.Errorf("repeat order")
+		o.appCfg.Logger.Warn("用户重复提交秒杀请求",
+			"product_id", productID,
+			"user_id", userID,
+			"quantity", quantity,
+		)
+		return -3, fmt.Errorf("用户重复提交秒杀请求")
 	}
 
 	err = repository.NewProductRepository(o.appCfg).DoSecKillSave(ctx, productID, userID, quantity)
 	if err != nil {
-		o.appCfg.Logger.Error("do sec kill save failed:", "error", err)
 		return 0, err
 	}
 

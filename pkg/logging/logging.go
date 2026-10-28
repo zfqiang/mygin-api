@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -13,10 +15,34 @@ import (
 )
 
 type Loggers struct {
-	System   *zap.SugaredLogger
-	Database *zap.Logger
-	Redis    *zap.Logger
+	System   *Logger
+	Database *Logger
+	Redis    *Logger
 	writers  []io.Closer
+}
+
+type Logger struct {
+	base *zap.Logger
+}
+
+func (l *Logger) Info(args ...any) {
+	l.base.Info(formatMessage(args))
+}
+
+func (l *Logger) Warn(args ...any) {
+	l.base.Warn(formatMessage(args))
+}
+
+func (l *Logger) Errorf(format string, args ...any) {
+	l.base.Error(fmt.Sprintf(format, args...))
+}
+
+func (l *Logger) Fatal(args ...any) {
+	l.base.Fatal(formatMessage(args))
+}
+
+func (l *Logger) Logf(format string, args ...any) {
+	l.base.Info(fmt.Sprintf(format, args...))
 }
 
 func New(directory string) (*Loggers, error) {
@@ -47,9 +73,9 @@ func New(directory string) (*Loggers, error) {
 	}
 
 	return &Loggers{
-		System:   system.Sugar(),
-		Database: database,
-		Redis:    redis,
+		System:   wrapLogger(system),
+		Database: wrapLogger(database),
+		Redis:    wrapLogger(redis),
 		writers:  []io.Closer{systemWriter, databaseWriter, redisWriter},
 	}, nil
 }
@@ -59,9 +85,9 @@ func (l *Loggers) Sync() error {
 		return nil
 	}
 	return errors.Join(
-		wrapSyncError("system", l.System.Sync()),
-		wrapSyncError("database", l.Database.Sync()),
-		wrapSyncError("Redis", l.Redis.Sync()),
+		wrapSyncError("system", l.System.base.Sync()),
+		wrapSyncError("database", l.Database.base.Sync()),
+		wrapSyncError("Redis", l.Redis.base.Sync()),
 	)
 }
 
@@ -74,6 +100,41 @@ func (l *Loggers) Close() error {
 		errs = append(errs, writer.Close())
 	}
 	return errors.Join(errs...)
+}
+
+func wrapLogger(base *zap.Logger) *Logger {
+	return &Logger{
+		base: base.WithOptions(zap.AddCallerSkip(1)),
+	}
+}
+
+func formatMessage(args []any) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	var message strings.Builder
+	message.WriteString(fmt.Sprint(args[0]))
+	for i := 1; i < len(args); i += 2 {
+		key := fmt.Sprint(args[i])
+		message.WriteString(" | ")
+		message.WriteString(key)
+		message.WriteByte('=')
+		if i+1 == len(args) {
+			message.WriteString("<missing>")
+			continue
+		}
+		message.WriteString(formatValue(args[i+1]))
+	}
+	return message.String()
+}
+
+func formatValue(value any) string {
+	text := fmt.Sprint(value)
+	if strings.ContainsAny(text, " \t\r\n|\"") {
+		return strconv.Quote(text)
+	}
+	return text
 }
 
 func wrapSyncError(name string, err error) error {
@@ -97,9 +158,11 @@ func newLogger(path, name string) (*zap.Logger, *lumberjack.Logger, error) {
 	encoderConfig.NameKey = "logger"
 	encoderConfig.CallerKey = "caller"
 	encoderConfig.MessageKey = "message"
-	encoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
+	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	encoderConfig.EncodeDuration = zapcore.StringDurationEncoder
-	core := zapcore.NewCore(zapcore.NewJSONEncoder(encoderConfig), zapcore.AddSync(writer), zapcore.DebugLevel)
+	encoderConfig.EncodeCaller = zapcore.ShortCallerEncoder
+	encoderConfig.ConsoleSeparator = " | "
+	core := zapcore.NewCore(zapcore.NewConsoleEncoder(encoderConfig), zapcore.AddSync(writer), zapcore.DebugLevel)
 	return zap.New(core, zap.AddCaller()).Named(name), writer, nil
 }

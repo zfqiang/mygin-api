@@ -5,16 +5,16 @@ import (
 	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
+	"mygin-api/pkg/logging"
 )
 
-func Recovery(logger *zap.SugaredLogger) gin.HandlerFunc {
+func Recovery(logger *logging.Logger) gin.HandlerFunc {
 	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
-		logger.Error("panic recovered",
-			"panic", recovered,
-			"path", c.Request.URL.Path,
-			"method", c.Request.Method,
-			"stack", string(debug.Stack()),
+		logger.Errorf("HTTP 请求处理中发生 panic | panic=%v | method=%s | path=%s | stack=%s",
+			recovered,
+			c.Request.Method,
+			c.Request.URL.Path,
+			string(debug.Stack()),
 		)
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	})
