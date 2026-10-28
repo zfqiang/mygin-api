@@ -1,10 +1,10 @@
 package middleware
 
 import (
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
@@ -13,7 +13,7 @@ import (
 // GlobalRateLimitMiddleware 创建全局限流中间件
 // limit: 每秒允许的请求数 (QPS)
 // burst: 允许的最大突发请求数
-func GlobalRateLimitMiddleware(limit rate.Limit, burst int, logger *slog.Logger) gin.HandlerFunc {
+func GlobalRateLimitMiddleware(limit rate.Limit, burst int, logger *zap.SugaredLogger) gin.HandlerFunc {
 	limiter := rate.NewLimiter(limit, burst)
 
 	return func(c *gin.Context) {

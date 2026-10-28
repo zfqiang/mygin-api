@@ -2,8 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
-	"log/slog"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -14,13 +13,23 @@ import (
 	"mygin-api/pkg/cache"
 	"mygin-api/pkg/config"
 	"mygin-api/pkg/database"
+	"mygin-api/pkg/logging"
 	_ "net/http/pprof"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if err := run(logger); err != nil {
-		logger.Error("server stopped", "error", err)
+	loggers, err := logging.New("logs")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "initialize loggers:", err)
+		os.Exit(1)
+	}
+	if err := run(loggers); err != nil {
+		loggers.System.Error("schedule stopped", "error", err)
+		_ = loggers.Close()
+		os.Exit(1)
+	}
+	if err := loggers.Close(); err != nil {
+		fmt.Fprintln(os.Stderr, "flush logs:", err)
 		os.Exit(1)
 	}
 }
@@ -33,7 +42,7 @@ func main() {
  * @param logger 日志记录器，用于记录应用程序运行时的日志信息
  * @return error 如果服务启动或运行过程中发生错误，则返回相应的错误信息
  */
-func run(logger *slog.Logger) error {
+func run(loggers *logging.Loggers) error {
 	// 加载配置文件，如果加载失败则返回错误
 	cfg, err := config.Load()
 	if err != nil {
@@ -45,7 +54,7 @@ func run(logger *slog.Logger) error {
 	defer cancel()
 
 	// 初始化数据库连接，如果连接失败则返回错误
-	db, err := database.Open(startupCtx, cfg.MySQL)
+	db, err := database.Open(startupCtx, cfg.MySQL, loggers.Database)
 	if err != nil {
 		return err
 	}
@@ -58,7 +67,7 @@ func run(logger *slog.Logger) error {
 	defer sqlDB.Close()
 
 	// 初始化 Redis 客户端，如果连接失败则返回错误
-	redisClient, err := cache.Open(startupCtx, cfg.Redis)
+	redisClient, err := cache.Open(startupCtx, cfg.Redis, loggers.Redis)
 	if err != nil {
 		return err
 	}
@@ -70,7 +79,7 @@ func run(logger *slog.Logger) error {
 		Cfg:         &cfg,
 		DB:          db,
 		RedisClient: redisClient,
-		Logger:      logger,
+		Logger:      loggers.System,
 	}
 
 	// 当收到信号时，cancel() 会被调用，所有派生的 ctx 都会收到 Done 信号
@@ -99,7 +108,7 @@ func run(logger *slog.Logger) error {
 	// 3. 阻塞主线程，等待信号或上下文取消
 	select {
 	case sig := <-sigChan:
-		log.Printf("收到终止信号: %v，开始优雅退出...", sig)
+		loggers.System.Info("received termination signal; starting graceful shutdown", "signal", sig.String())
 		cancel() // 触发所有监听 ctx.Done() 的协程退出
 	case <-ctx.Done():
 		// 防止其他逻辑意外取消 context
@@ -115,9 +124,9 @@ func run(logger *slog.Logger) error {
 
 	select {
 	case <-done:
-		log.Println("所有后台任务已安全退出。")
+		loggers.System.Info("all background tasks stopped")
 	case <-time.After(10 * time.Second):
-		log.Println("警告：等待超时，强制退出程序。")
+		loggers.System.Warn("timed out waiting for background tasks to stop")
 	}
 	return nil
 }

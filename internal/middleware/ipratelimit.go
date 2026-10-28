@@ -1,12 +1,12 @@
 package middleware
 
 import (
-	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
@@ -86,7 +86,7 @@ func (i *IPRateLimiter) cleanup(ttl time.Duration) {
 }
 
 // RateLimitMiddleware Gin 中间件入口
-func RateLimitMiddleware(limit rate.Limit, burst int, logger *slog.Logger) gin.HandlerFunc {
+func RateLimitMiddleware(limit rate.Limit, burst int, logger *zap.SugaredLogger) gin.HandlerFunc {
 	// 初始化：每秒 5 个请求，突发容忍 10 个
 	limiterManager := NewIPRateLimiter(limit, burst)
 

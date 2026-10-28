@@ -3,14 +3,14 @@ package auth
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"time"
 
-	"mygin-api/pkg/config"
 	"mygin-api/internal/middleware"
+	"mygin-api/pkg/config"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -57,7 +57,7 @@ type LoginHandler struct {
 	secret []byte
 	issuer string
 	ttl    time.Duration
-	logger *slog.Logger
+	logger *zap.SugaredLogger
 }
 
 func NewLoginHandler(appCfg *config.AppConfig) *LoginHandler {

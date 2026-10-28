@@ -7,6 +7,7 @@ import (
 
 	"mygin-api/pkg/config"
 	"mygin-api/pkg/database"
+	"mygin-api/pkg/logging"
 
 	"gorm.io/gen"
 	"gorm.io/gorm"
@@ -14,6 +15,17 @@ import (
 
 // 详细配置参考: https://gorm.io/gen/config.html
 func main() {
+	loggers, err := logging.New("logs")
+	if err != nil {
+		fmt.Println("Failed to initialize loggers:", err)
+		return
+	}
+	defer func() {
+		if err := loggers.Close(); err != nil {
+			fmt.Println("Failed to flush logs:", err)
+		}
+	}()
+
 	// 1. 连接数据库
 	// 注意：parseTime=True 对于时间类型字段正确映射至关重要
 	//  outPath ModelPkgPath 是相对当前项目目录的
@@ -38,7 +50,7 @@ func main() {
 	defer cancel()
 
 	// 初始化数据库连接，如果连接失败则返回错误
-	db, err := database.Open(startupCtx, cfg.MySQL)
+	db, err := database.Open(startupCtx, cfg.MySQL, loggers.Database)
 	if err != nil {
 		fmt.Println("Failed to open database:", err)
 		return
@@ -72,11 +84,11 @@ func main() {
 	// ApplyBasic 会根据表结构生成基本的 CRUD 结构体和方法
 	// 你可以传入具体的表名，或者使用 g.GenerateAllTable() 生成所有表
 	g.ApplyBasic(
-		// 方式一：生成指定表
-		// g.GenerateModel("users"),
-		// g.GenerateModel("orders"),
-		// g.GenerateModel("products"),
-		// g.GenerateModel("order_items"),
+	// 方式一：生成指定表
+	// g.GenerateModel("users"),
+	// g.GenerateModel("orders"),
+	// g.GenerateModel("products"),
+	// g.GenerateModel("order_items"),
 
 	// 方式二：生成所有表 (推荐用于快速上手)
 	// g.GenerateAllTable()...,

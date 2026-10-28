@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log/slog"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -16,12 +16,22 @@ import (
 	"mygin-api/pkg/cache"
 	"mygin-api/pkg/config"
 	"mygin-api/pkg/database"
+	"mygin-api/pkg/logging"
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if err := run(logger); err != nil {
-		logger.Error("server stopped", "error", err)
+	loggers, err := logging.New("./logs")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "initialize loggers:", err)
+		os.Exit(1)
+	}
+	if err := run(loggers); err != nil {
+		loggers.System.Error("server stopped", "error", err)
+		_ = loggers.Close()
+		os.Exit(1)
+	}
+	if err := loggers.Close(); err != nil {
+		fmt.Fprintln(os.Stderr, "flush logs:", err)
 		os.Exit(1)
 	}
 }
@@ -34,7 +44,7 @@ func main() {
  * @param logger 日志记录器，用于记录应用程序运行时的日志信息
  * @return error 如果服务启动或运行过程中发生错误，则返回相应的错误信息
  */
-func run(logger *slog.Logger) error {
+func run(loggers *logging.Loggers) error {
 	// 加载配置文件，如果加载失败则返回错误
 	cfg, err := config.Load()
 	if err != nil {
@@ -46,7 +56,7 @@ func run(logger *slog.Logger) error {
 	defer cancel()
 
 	// 初始化数据库连接，如果连接失败则返回错误
-	db, err := database.Open(startupCtx, cfg.MySQL)
+	db, err := database.Open(startupCtx, cfg.MySQL, loggers.Database)
 	if err != nil {
 		return err
 	}
@@ -62,7 +72,7 @@ func run(logger *slog.Logger) error {
 	defer sqlDB.Close()
 
 	// 初始化 Redis 客户端，如果连接失败则返回错误
-	redisClient, err := cache.Open(startupCtx, cfg.Redis)
+	redisClient, err := cache.Open(startupCtx, cfg.Redis, loggers.Redis)
 	if err != nil {
 		return err
 	}
@@ -74,7 +84,7 @@ func run(logger *slog.Logger) error {
 		Cfg:         &cfg,
 		DB:          db,
 		RedisClient: redisClient,
-		Logger:      logger,
+		Logger:      loggers.System,
 	}
 	router := router.NewRouter()
 	handler := router.New(appCfg)
@@ -93,7 +103,7 @@ func run(logger *slog.Logger) error {
 	serverErr := make(chan error, 1)
 	// 启动一个 goroutine 来运行 HTTP 服务器，并将错误发送到错误通道
 	go func() {
-		logger.Info("server starting", "address", server.Addr, "mode", cfg.Mode)
+		loggers.System.Info("server starting", "address", server.Addr, "mode", cfg.Mode)
 		serverErr <- server.ListenAndServe()
 	}()
 

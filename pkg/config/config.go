@@ -2,8 +2,6 @@ package config
 
 import (
 	"fmt"
-	"log"
-	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -12,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -51,17 +50,16 @@ type AppConfig struct {
 	Cfg         *Config
 	DB          *gorm.DB
 	RedisClient *redis.Client
-	Logger      *slog.Logger
+	Logger      *zap.SugaredLogger
 }
 
 func Load() (Config, error) {
-	var err error
-	envPath := LoadEnvFromRoot()
-
-	err = godotenv.Load(envPath)
+	envPath, err := LoadEnvFromRoot()
 	if err != nil {
-		log.Fatal("Error loading .env file")
 		return Config{}, err
+	}
+	if err := godotenv.Load(envPath); err != nil {
+		return Config{}, fmt.Errorf("load environment file %s: %w", envPath, err)
 	}
 
 	cfg := Config{

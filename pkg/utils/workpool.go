@@ -1,10 +1,10 @@
 package utils
 
 import (
-	"log/slog"
 	"time"
 
 	"github.com/panjf2000/ants/v2"
+	"go.uber.org/zap"
 )
 
 // Workpool is a work pool
@@ -13,7 +13,7 @@ type Workpool struct {
 }
 
 // 创建一个工作池，指定工作池大小，并返回一个 Workpool 对象
-func NewWorkpool(size int, expiryDuration time.Duration, logger *slog.Logger) (*Workpool, error) {
+func NewWorkpool(size int, expiryDuration time.Duration, logger *zap.SugaredLogger) (*Workpool, error) {
 
 	// WithNonblocking: 默认行为 (false)‌：‌阻塞模式‌,‌当工作池已满时，Submit 会阻塞直到有空闲的 worker 可用。
 	// WithNonblocking(true): 非阻塞模式，当工作池已满时，Submit 会立即返回一个 error。

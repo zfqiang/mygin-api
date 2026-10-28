@@ -1,13 +1,13 @@
 package middleware
 
 import (
-	"log/slog"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
-func RequestLogger(logger *slog.Logger) gin.HandlerFunc {
+func RequestLogger(logger *zap.SugaredLogger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next()

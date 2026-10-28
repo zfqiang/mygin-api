@@ -1,14 +1,14 @@
 package middleware
 
 import (
-	"log/slog"
 	"net/http"
 	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
-func Recovery(logger *slog.Logger) gin.HandlerFunc {
+func Recovery(logger *zap.SugaredLogger) gin.HandlerFunc {
 	return gin.CustomRecovery(func(c *gin.Context, recovered any) {
 		logger.Error("panic recovered",
 			"panic", recovered,

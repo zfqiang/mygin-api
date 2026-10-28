@@ -75,7 +75,7 @@ internal/router/         路由及健康检查
 - **JWT**：仅接受 HS256；校验签名、issuer、过期时间和用户 ID。
 - **CORS**：`CORS_ORIGINS` 为逗号分隔的精确来源列表；设置 `*` 可允许任意来源，但不启用 credentials。
 - **限流**：Redis Lua 脚本原子执行固定窗口计数，默认每 IP 每分钟 100 次；Redis 不可用时返回 `503`，超限返回 `429` 和 `Retry-After`。
-- **日志 / Recovery**：`slog` JSON 结构化记录请求；panic 记录堆栈并返回通用 `500`，不会向客户端泄漏异常细节。
+- **日志 / Recovery**：Zap JSON 结构化日志分别写入 `logs/system.log`、`logs/database.log` 和 `logs/redis.log`；日志按 100 MB 切分，保留最多 7 个备份和 30 天。数据库日志记录慢查询及错误，SQL 参数默认脱敏；Redis 日志记录命令名、耗时和错误，不记录命令参数。panic 记录堆栈并返回通用 `500`，不会向客户端泄漏异常细节。
 - **代理 IP**：默认不信任反向代理头，避免伪造客户端 IP。部署在代理后时，应在 `internal/router/router.go` 中按部署网络配置可信代理。
 
 ## 测试与构建
