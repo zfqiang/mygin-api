@@ -24,10 +24,10 @@ func NewProductRepository(appCfg *config.AppConfig) *ProductRepository {
 
 func (r *ProductRepository) DoSecKillSave(ctx context.Context, productID int64, userID int64, quantity int32) error {
 	//抢购成功，记录到数据库
-	r.appCfg.Logger.Info("秒杀订单已通过 Redis 校验，开始写入数据库",
-		"product_id", productID,
-		"user_id", userID,
-		"quantity", quantity,
+	r.appCfg.Logger.LogF("秒杀订单已通过 Redis 校验，开始写入数据库 | product_id=%d | user_id=%d | quantity=%d",
+		productID,
+		userID,
+		quantity,
 	)
 	//扣除商品库存
 	// 1. 获取当前商品状态（用于日志或后续逻辑，非必须用于锁控制，但常用于获取版本号）

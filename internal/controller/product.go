@@ -33,7 +33,7 @@ func NewProductController(appCfg *config.AppConfig) *ProductController {
 func (p *ProductController) HandleSecKill(c *gin.Context) {
 	var param ProductParam
 	if err := c.ShouldBindJSON(&param); err != nil {
-		p.appCfg.Logger.Warn("秒杀请求参数解析失败", "error", err)
+		p.appCfg.Logger.WarnF("秒杀请求参数解析失败 | error=%v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -44,10 +44,10 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 
 	// 校验参数
 	if productID <= 0 || userID <= 0 || count <= 0 {
-		p.appCfg.Logger.Warn("秒杀请求参数无效",
-			"product_id", productID,
-			"user_id", userID,
-			"quantity", count,
+		p.appCfg.Logger.WarnF("秒杀请求参数无效 | product_id=%d | user_id=%d | quantity=%d",
+			productID,
+			userID,
+			count,
 		)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parameters"})
 		return
@@ -67,9 +67,9 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 	}
 
 	if result {
-		p.appCfg.Logger.Warn("用户已参与该商品秒杀",
-			"product_id", productID,
-			"user_id", userID,
+		p.appCfg.Logger.WarnF("用户已参与该商品秒杀 | product_id=%d | user_id=%d",
+			productID,
+			userID,
 		)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "用户已购抢购过该商品"})
 		return
@@ -108,7 +108,7 @@ func (o *ProductController) GenTestProductData(c *gin.Context) {
 	count, err := utils.StrToInt(c.DefaultQuery("count", "10"))
 	if err != nil {
 		c.JSON(200, gin.H{"status": "error", "message": err.Error()})
-		o.appCfg.Logger.Warn("生成测试商品数据时数量参数无效", "error", err)
+		o.appCfg.Logger.WarnF("生成测试商品数据时数量参数无效 | error=%v", err)
 		return
 	}
 	Products := make([]fakermodel.Product, count)
@@ -120,10 +120,10 @@ func (o *ProductController) GenTestProductData(c *gin.Context) {
 		Product.Status = 1
 		Product.Price = decimal.NewFromFloat(float64(r.Intn(1000))).Round(2)
 		Products[i] = Product
-		o.appCfg.Logger.Info("生成测试商品数据",
-			"product_name", Product.Name,
-			"category_id", Product.CategoryID,
-			"price", Product.Price,
+		o.appCfg.Logger.LogF("生成测试商品数据 | product_name=%q | category_id=%d | price=%s",
+			Product.Name,
+			Product.CategoryID,
+			Product.Price,
 		)
 	}
 	o.appCfg.DB.CreateInBatches(&Products, count)

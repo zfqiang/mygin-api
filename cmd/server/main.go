@@ -103,7 +103,7 @@ func run(loggers *logging.Loggers) error {
 	serverErr := make(chan error, 1)
 	// 启动一个 goroutine 来运行 HTTP 服务器，并将错误发送到错误通道
 	go func() {
-		loggers.System.Info("HTTP 服务启动", "address", server.Addr, "mode", cfg.Mode)
+		loggers.System.LogF("HTTP 服务启动 | address=%s | mode=%s", server.Addr, cfg.Mode)
 		serverErr <- server.ListenAndServe()
 	}()
 

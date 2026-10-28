@@ -26,9 +26,9 @@ func (s *OrderService) GenTestOrderData(count int) {
 	for i := 0; i < count; i++ {
 		var order fakermodel.Order
 		faker.FakeData(&order)
-		s.appCfg.Logger.Info("生成测试订单数据",
-			"order_no", order.OrderNo,
-			"user_id", order.UserID,
+		s.appCfg.Logger.LogF("生成测试订单数据 | order_no=%s | user_id=%d",
+			order.OrderNo,
+			order.UserID,
 		)
 
 		r := rand.New(rand.NewSource(time.Now().UnixNano()))

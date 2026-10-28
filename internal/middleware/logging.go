@@ -12,12 +12,12 @@ func RequestLogger(logger *logging.Logger) gin.HandlerFunc {
 		start := time.Now()
 		c.Next()
 
-		logger.Info("HTTP 请求完成",
-			"method", c.Request.Method,
-			"path", c.Request.URL.Path,
-			"status", c.Writer.Status(),
-			"duration", time.Since(start),
-			"client_ip", c.ClientIP(),
+		logger.LogF("HTTP 请求完成 | method=%s | path=%s | status=%d | duration=%s | client_ip=%s",
+			c.Request.Method,
+			c.Request.URL.Path,
+			c.Writer.Status(),
+			time.Since(start),
+			c.ClientIP(),
 		)
 	}
 }

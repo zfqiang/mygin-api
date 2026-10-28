@@ -39,10 +39,10 @@ func (h redisLoggingHook) DialHook(next redis.DialHook) redis.DialHook {
 				network, addr, time.Since(start), err)
 			return nil, err
 		}
-		h.logger.Info("Redis 连接成功",
-			"network", network,
-			"address", addr,
-			"duration", time.Since(start),
+		h.logger.LogF("Redis 连接成功 | network=%s | address=%s | duration=%s",
+			network,
+			addr,
+			time.Since(start),
 		)
 		return conn, nil
 	}
@@ -56,9 +56,9 @@ func (h redisLoggingHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook 
 			h.logger.Errorf("Redis 命令执行失败 | command=%s | duration=%s | error=%v",
 				cmd.Name(), time.Since(start), err)
 		} else {
-			h.logger.Info("Redis 命令执行完成",
-				"command", cmd.Name(),
-				"duration", time.Since(start),
+			h.logger.LogF("Redis 命令执行完成 | command=%s | duration=%s",
+				cmd.Name(),
+				time.Since(start),
 			)
 		}
 		return err
@@ -77,10 +77,10 @@ func (h redisLoggingHook) ProcessPipelineHook(next redis.ProcessPipelineHook) re
 			h.logger.Errorf("Redis Pipeline 执行失败 | commands=%v | command_count=%d | duration=%s | error=%v",
 				commands, len(cmds), time.Since(start), err)
 		} else {
-			h.logger.Info("Redis Pipeline 执行完成",
-				"commands", commands,
-				"command_count", len(cmds),
-				"duration", time.Since(start),
+			h.logger.LogF("Redis Pipeline 执行完成 | commands=%v | command_count=%d | duration=%s",
+				commands,
+				len(cmds),
+				time.Since(start),
 			)
 		}
 		return err

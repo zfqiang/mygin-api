@@ -34,7 +34,7 @@ func NewWorkpool(size int, expiryDuration time.Duration, logger *logging.Logger)
 		return nil, err
 
 	}
-	logger.Info("工作池初始化完成", "capacity", size, "idle_timeout", expiryDuration)
+	logger.LogF("工作池初始化完成 | capacity=%d | idle_timeout=%s", size, expiryDuration)
 	workPool := &Workpool{
 		GlobalPool: pool,
 	}

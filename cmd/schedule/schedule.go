@@ -108,7 +108,7 @@ func run(loggers *logging.Loggers) error {
 	// 3. 阻塞主线程，等待信号或上下文取消
 	select {
 	case sig := <-sigChan:
-		loggers.System.Info("收到终止信号，开始优雅关闭", "signal", sig.String())
+		loggers.System.LogF("收到终止信号，开始优雅关闭 | signal=%s", sig.String())
 		cancel() // 触发所有监听 ctx.Done() 的协程退出
 	case <-ctx.Done():
 		// 防止其他逻辑意外取消 context
@@ -124,9 +124,9 @@ func run(loggers *logging.Loggers) error {
 
 	select {
 	case <-done:
-		loggers.System.Info("所有后台任务已停止")
+		loggers.System.LogF("所有后台任务已停止")
 	case <-time.After(10 * time.Second):
-		loggers.System.Warn("等待后台任务停止超时", "timeout", 10*time.Second)
+		loggers.System.WarnF("等待后台任务停止超时 | timeout=%s", 10*time.Second)
 	}
 	return nil
 }

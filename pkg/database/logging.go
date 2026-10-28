@@ -32,13 +32,13 @@ func (l *gormLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface {
 
 func (l *gormLogger) Info(_ context.Context, message string, args ...interface{}) {
 	if l.level >= gormlogger.Info {
-		l.logger.Info("数据库日志", "message", fmt.Sprintf(message, args...))
+		l.logger.LogF("数据库日志 | message=%s", fmt.Sprintf(message, args...))
 	}
 }
 
 func (l *gormLogger) Warn(_ context.Context, message string, args ...interface{}) {
 	if l.level >= gormlogger.Warn {
-		l.logger.Warn("数据库警告", "message", fmt.Sprintf(message, args...))
+		l.logger.WarnF("数据库警告 | message=%s", fmt.Sprintf(message, args...))
 	}
 }
 
@@ -61,19 +61,12 @@ func (l *gormLogger) Trace(_ context.Context, begin time.Time, query func() (str
 			duration, rows, sql, err)
 	case l.slowThreshold > 0 && duration > l.slowThreshold && l.level >= gormlogger.Warn:
 		sql, rows := query()
-		l.logger.Warn("SQL 执行缓慢",
-			"duration", duration,
-			"slow_threshold", l.slowThreshold,
-			"rows_affected", rows,
-			"sql", sql,
-		)
+		l.logger.WarnF("SQL 执行缓慢 | duration=%s | slow_threshold=%s | rows_affected=%d | sql=%s",
+			duration, l.slowThreshold, rows, sql)
 	case l.level >= gormlogger.Info:
 		sql, rows := query()
-		l.logger.Info("SQL 执行完成",
-			"duration", duration,
-			"rows_affected", rows,
-			"sql", sql,
-		)
+		l.logger.LogF("SQL 执行完成 | duration=%s | rows_affected=%d | sql=%s",
+			duration, rows, sql)
 	}
 }
 

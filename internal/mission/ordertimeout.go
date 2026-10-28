@@ -30,7 +30,7 @@ func NewOrderTimeout(appCfg *config.AppConfig) *OrderTimeout {
 
 func (o *OrderTimeout) Shutdown() {
 	o.wg.Wait()
-	o.appCfg.Logger.Info("订单超时处理任务已停止")
+	o.appCfg.Logger.LogF("订单超时处理任务已停止")
 }
 
 func (o *OrderTimeout) Run(ctx context.Context) {
@@ -66,7 +66,7 @@ func (o *OrderTimeout) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			o.appCfg.Logger.Info("订单超时处理任务收到停止信号")
+			o.appCfg.Logger.LogF("订单超时处理任务收到停止信号")
 			return
 		case <-ticker.C:
 			o.SubmitOrder(ctx, pool)
@@ -119,7 +119,7 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 					if err := o.ProcessOrder(ctx, orderNo); err != nil {
 						return err
 					}
-					o.appCfg.Logger.Info("超时订单处理成功", "order_no", orderNo)
+					o.appCfg.Logger.LogF("超时订单处理成功 | order_no=%s", orderNo)
 					return nil
 				},
 				retry.Context(ctx),                // 支持上下文取消
@@ -127,10 +127,10 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) er
 				retry.Delay(500*time.Millisecond), // 基础延迟
 				retry.MaxDelay(2*time.Second),     // 最大延迟
 				retry.OnRetry(func(n uint, err error) {
-					o.appCfg.Logger.Warn("超时订单处理失败，准备重试",
-						"order_no", orderNo,
-						"attempt", n+1,
-						"error", err,
+					o.appCfg.Logger.WarnF("超时订单处理失败，准备重试 | order_no=%s | attempt=%d | error=%v",
+						orderNo,
+						n+1,
+						err,
 					)
 				}),
 				retry.RetryIf(func(err error) bool {

@@ -75,24 +75,24 @@ func (o *ProductService) DoSecKill(ctx context.Context, productID int64, userID 
 	}
 	switch resp.(int64) {
 	case -1:
-		o.appCfg.Logger.Warn("商品库存不足",
-			"product_id", productID,
-			"user_id", userID,
-			"quantity", quantity,
+		o.appCfg.Logger.WarnF("商品库存不足 | product_id=%d | user_id=%d | quantity=%d",
+			productID,
+			userID,
+			quantity,
 		)
 		return -1, fmt.Errorf("商品库存不足")
 	case -2:
-		o.appCfg.Logger.Warn("购买数量超过剩余库存",
-			"product_id", productID,
-			"user_id", userID,
-			"quantity", quantity,
+		o.appCfg.Logger.WarnF("购买数量超过剩余库存 | product_id=%d | user_id=%d | quantity=%d",
+			productID,
+			userID,
+			quantity,
 		)
 		return -2, fmt.Errorf("购买数量超过剩余库存")
 	case -3:
-		o.appCfg.Logger.Warn("用户重复提交秒杀请求",
-			"product_id", productID,
-			"user_id", userID,
-			"quantity", quantity,
+		o.appCfg.Logger.WarnF("用户重复提交秒杀请求 | product_id=%d | user_id=%d | quantity=%d",
+			productID,
+			userID,
+			quantity,
 		)
 		return -3, fmt.Errorf("用户重复提交秒杀请求")
 	}

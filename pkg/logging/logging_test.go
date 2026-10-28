@@ -9,11 +9,10 @@ import (
 )
 
 var _ interface {
-	Info(...any)
-	Warn(...any)
+	LogF(string, ...any)
+	WarnF(string, ...any)
 	Errorf(string, ...any)
 	Fatal(...any)
-	Logf(string, ...any)
 } = (*Logger)(nil)
 
 func TestNewSeparatesLogCategories(t *testing.T) {
@@ -24,13 +23,13 @@ func TestNewSeparatesLogCategories(t *testing.T) {
 	}
 	defer loggers.Close()
 
-	loggers.System.Info("system marker", "request_id", "req-123")
-	loggers.System.Warn("warning marker")
+	loggers.System.LogF("system marker | request_id=%s", "req-123")
+	loggers.System.WarnF("warning marker")
 	loggers.System.Errorf("%s", "error marker")
 	loggers.System.Errorf("formatted error: %s", "failure")
-	loggers.System.Logf("formatted marker: %s", "logf")
-	loggers.Database.Info("database marker", "query", "SELECT 1")
-	loggers.Redis.Info("redis marker", "command", "PING")
+	loggers.System.LogF("formatted marker: %s", "LogF")
+	loggers.Database.LogF("database marker | query=%s", "SELECT 1")
+	loggers.Redis.LogF("redis marker | command=%s", "PING")
 	if err := loggers.Sync(); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +56,7 @@ func TestNewSeparatesLogCategories(t *testing.T) {
 		}
 	}
 	systemContent := contents["system.log"]
-	for _, marker := range []string{"WARN", "ERROR", "formatted error: failure", "formatted marker: logf"} {
+	for _, marker := range []string{"WARN", "ERROR", "formatted error: failure", "formatted marker: LogF"} {
 		if !strings.Contains(systemContent, marker) {
 			t.Errorf("system log does not contain %q", marker)
 		}
@@ -74,7 +73,7 @@ func TestNewSeparatesLogCategories(t *testing.T) {
 		"INFO | system |",
 		"system marker | request_id=req-123",
 		"formatted error: failure",
-		"formatted marker: logf",
+		"formatted marker: LogF",
 	} {
 		if !strings.Contains(contents["system.log"], expected) {
 			t.Errorf("system log does not contain formatted output %q", expected)

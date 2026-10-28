@@ -98,9 +98,9 @@ func RateLimitMiddleware(limit rate.Limit, burst int, logger *logging.Logger) gi
 
 		// 尝试获取令牌
 		if !l.Allow() {
-			logger.Warn("请求触发 IP 限流",
-				"client_ip", ip,
-				"path", c.Request.URL.Path,
+			logger.WarnF("请求触发 IP 限流 | client_ip=%s | path=%s",
+				ip,
+				c.Request.URL.Path,
 			)
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error": "rate limit exceeded for IP: " + ip,

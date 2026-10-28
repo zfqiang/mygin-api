@@ -20,9 +20,9 @@ func GlobalRateLimitMiddleware(limit rate.Limit, burst int, logger *logging.Logg
 		// Allow() 是非阻塞的，如果没有令牌立即返回 false
 		// Wait() 是阻塞的，直到有令牌为止
 		if !limiter.Allow() {
-			logger.Warn("请求触发全局限流",
-				"client_ip", c.ClientIP(),
-				"path", c.Request.URL.Path,
+			logger.WarnF("请求触发全局限流 | client_ip=%s | path=%s",
+				c.ClientIP(),
+				c.Request.URL.Path,
 			)
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error": "too many requests",

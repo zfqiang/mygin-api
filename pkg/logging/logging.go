@@ -25,12 +25,12 @@ type Logger struct {
 	base *zap.Logger
 }
 
-func (l *Logger) Info(args ...any) {
-	l.base.Info(formatMessage(args))
+func (l *Logger) LogF(format string, args ...any) {
+	l.base.Info(fmt.Sprintf(format, args...))
 }
 
-func (l *Logger) Warn(args ...any) {
-	l.base.Warn(formatMessage(args))
+func (l *Logger) WarnF(format string, args ...any) {
+	l.base.Warn(fmt.Sprintf(format, args...))
 }
 
 func (l *Logger) Errorf(format string, args ...any) {
@@ -39,10 +39,6 @@ func (l *Logger) Errorf(format string, args ...any) {
 
 func (l *Logger) Fatal(args ...any) {
 	l.base.Fatal(formatMessage(args))
-}
-
-func (l *Logger) Logf(format string, args ...any) {
-	l.base.Info(fmt.Sprintf(format, args...))
 }
 
 func New(directory string) (*Loggers, error) {
