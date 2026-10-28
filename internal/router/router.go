@@ -3,10 +3,10 @@ package router
 import (
 	"net/http"
 
-	"mygin-api/internal/config"
 	"mygin-api/internal/middleware"
 	"mygin-api/internal/router/api"
 	"mygin-api/internal/router/health"
+	"mygin-api/pkg/config"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"

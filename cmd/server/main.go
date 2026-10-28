@@ -5,17 +5,17 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"mygin-api/internal/auth"
-	"mygin-api/internal/cache"
-	"mygin-api/internal/config"
-	"mygin-api/internal/database"
 	"mygin-api/internal/router"
-	_ "net/http/pprof"
+	"mygin-api/internal/service/auth"
+	"mygin-api/pkg/cache"
+	"mygin-api/pkg/config"
+	"mygin-api/pkg/database"
 )
 
 func main() {

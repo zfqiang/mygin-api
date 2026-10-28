@@ -2,8 +2,8 @@ package health
 
 import (
 	"context"
-	"mygin-api/internal/config"
 	"mygin-api/internal/middleware"
+	"mygin-api/pkg/config"
 	"net/http"
 	"time"
 

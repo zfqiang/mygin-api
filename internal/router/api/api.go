@@ -3,9 +3,10 @@ package api
 import (
 	"net/http"
 
-	"mygin-api/internal/auth"
-	"mygin-api/internal/config"
 	"mygin-api/internal/middleware"
+	"mygin-api/internal/service"
+	"mygin-api/internal/service/auth"
+	"mygin-api/pkg/config"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,5 +30,7 @@ func (r *ApiRouter) RegisterAPIRoutes() {
 		userID, _ := middleware.AuthenticatedUserID(c)
 		c.JSON(http.StatusOK, gin.H{"user_id": userID})
 	})
-	api.POST("/auth/login", auth.NewHandler(r.appCfg).Login)
+	api.POST("/auth/login", auth.NewLoginHandler(r.appCfg).Login)
+
+	api.POST("/gen/test_orders", service.NewOrderService(r.appCfg).GenTestOrderData)
 }

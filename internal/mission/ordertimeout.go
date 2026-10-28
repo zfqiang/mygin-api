@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"mygin-api/internal/config"
 	"mygin-api/internal/model"
-	"mygin-api/internal/pool"
+	"mygin-api/pkg/config"
+	"mygin-api/pkg/utils"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -16,7 +16,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-const orderTimeoutKey = "order:timeout"
+const OrderTimeoutKey = "order:timeout"
 
 type OrderTimeout struct {
 	redisClient *redis.Client
@@ -44,7 +44,7 @@ func (o *OrderTimeout) Run(ctx context.Context) {
 		}
 	}()
 
-	pool, err := pool.NewWorkpool(10, o.appCfg.Logger)
+	pool, err := utils.NewWorkpool(10, o.appCfg.Logger)
 	if err != nil {
 		o.appCfg.Logger.Error("Failed to create workpool: %v", err)
 		return
@@ -68,14 +68,14 @@ func (o *OrderTimeout) Run(ctx context.Context) {
 
 }
 
-func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *pool.Workpool) error {
+func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *utils.Workpool) error {
 	//处理订单超时逻辑
 	now := float64(time.Now().UnixNano())
 
 	// ZRANGEBYSCORE key min max LIMIT offset count
 	// 获取所有 score <= now 的成员（即已超时的订单）
 	// 注意：这里为了简单演示，一次性获取最多 10 个过期订单
-	orders, err := o.appCfg.RedisClient.ZRangeByScore(ctx, orderTimeoutKey, &redis.ZRangeBy{
+	orders, err := o.appCfg.RedisClient.ZRangeByScore(ctx, OrderTimeoutKey, &redis.ZRangeBy{
 		Min:    "-inf",
 		Max:    fmt.Sprintf("%f", now),
 		Offset: 0,
@@ -94,7 +94,7 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *pool.Workpool) err
 		currentOrderNo := orderNo
 		// 尝试从 Sorted Set 中移除该成员，确保只被处理一次
 		// 使用 ZREM 的返回值判断是否成功移除，防止并发重复处理
-		_, err := o.appCfg.RedisClient.ZRem(ctx, orderTimeoutKey, currentOrderNo).Result()
+		_, err := o.appCfg.RedisClient.ZRem(ctx, OrderTimeoutKey, currentOrderNo).Result()
 		if err != nil {
 			o.appCfg.Logger.Error("Failed to remove order from redis: %v", err)
 			continue
@@ -140,7 +140,7 @@ func (o *OrderTimeout) SubmitOrder(ctx context.Context, pool *pool.Workpool) err
 			o.wg.Done() // 提交失败时必须手动递减，防止 WaitGroup 死锁
 			o.appCfg.Logger.Error("Failed to submit order %s to pool: %v", orderNo, err)
 			// 提交失败，将订单重新加回队列，防止数据丢失
-			o.appCfg.RedisClient.ZAdd(ctx, orderTimeoutKey, redis.Z{
+			o.appCfg.RedisClient.ZAdd(ctx, OrderTimeoutKey, redis.Z{
 				Score:  now,
 				Member: currentOrderNo,
 			})

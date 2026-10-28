@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"mygin-api/internal/config"
+	"mygin-api/pkg/config"
 
 	"github.com/redis/go-redis/v9"
 )

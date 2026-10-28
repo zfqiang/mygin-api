@@ -5,13 +5,21 @@
 ## 目录结构
 
 ```text
-cmd/server/          服务入口与优雅关闭
-internal/config/     环境变量配置及校验
-internal/database/   GORM + MySQL 初始化
-internal/cache/      Redis 初始化
-internal/middleware/ JWT、CORS、限流、日志、Recovery
-internal/router/     路由及健康检查
+cmd/server/              HTTP 服务入口
+cmd/schedule/            后台定时任务入口
+cmd/gen/                 GORM 代码生成入口
+internal/config/         环境变量配置及校验
+internal/cache/          Redis 客户端初始化
+internal/database/       GORM + MySQL 初始化
+internal/handler/        HTTP 处理器（含 auth）
+internal/middleware/     JWT、CORS、限流、日志、Recovery
+internal/model/          业务模型与生成模型
+internal/dao/gend/       GORM 生成的查询代码
+internal/pool/           后台任务并发池
+internal/router/         路由及健康检查
 ```
+
+重新生成数据库访问代码时，在项目根目录执行 `go run ./cmd/gen`。
 
 ## 本地启动
 

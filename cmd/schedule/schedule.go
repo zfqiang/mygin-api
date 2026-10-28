@@ -10,10 +10,10 @@ import (
 	"syscall"
 	"time"
 
-	"mygin-api/internal/cache"
-	"mygin-api/internal/config"
-	"mygin-api/internal/database"
-	"mygin-api/internal/pool/mission"
+	"mygin-api/internal/mission"
+	"mygin-api/pkg/cache"
+	"mygin-api/pkg/config"
+	"mygin-api/pkg/database"
 	_ "net/http/pprof"
 )
 
@@ -86,7 +86,6 @@ func run(logger *slog.Logger) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-
 		orderTimeout.Run(ctx)
 	}()
 	defer orderTimeout.Shutdown() // 确保在函数退出时关闭订单超时处理协程

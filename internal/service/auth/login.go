@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"mygin-api/internal/config"
+	"mygin-api/pkg/config"
 	"mygin-api/internal/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -25,16 +25,19 @@ type User struct {
 
 // Migrate 是一个数据库迁移函数，用于自动创建或更新数据库表结构
 // 参数:
-//   db - 指向 GORM 数据库对象的指针，用于执行数据库操作
+//
+//	db - 指向 GORM 数据库对象的指针，用于执行数据库操作
+//
 // 返回值:
-//   error - 如果迁移过程中发生错误，返回包含详细信息的错误；否则返回 nil
+//
+//	error - 如果迁移过程中发生错误，返回包含详细信息的错误；否则返回 nil
 func Migrate(db *gorm.DB) error {
-    // 使用 AutoMigrate 方法自动迁移 User 结构体对应的数据库表
-    // 如果迁移失败，则返回一个包含错误信息的格式化错误
+	// 使用 AutoMigrate 方法自动迁移 User 结构体对应的数据库表
+	// 如果迁移失败，则返回一个包含错误信息的格式化错误
 	if err := db.AutoMigrate(&User{}); err != nil {
 		return fmt.Errorf("migrate users table: %w", err)
 	}
-    // 迁移成功，返回 nil 表示无错误
+	// 迁移成功，返回 nil 表示无错误
 	return nil
 }
 
@@ -49,7 +52,7 @@ func HashPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
-type Handler struct {
+type LoginHandler struct {
 	db     *gorm.DB
 	secret []byte
 	issuer string
@@ -57,8 +60,8 @@ type Handler struct {
 	logger *slog.Logger
 }
 
-func NewHandler(appCfg *config.AppConfig) *Handler {
-	return &Handler{
+func NewLoginHandler(appCfg *config.AppConfig) *LoginHandler {
+	return &LoginHandler{
 		db:     appCfg.DB,
 		secret: appCfg.Cfg.JWTSecret,
 		issuer: appCfg.Cfg.JWTIssuer,
@@ -72,7 +75,7 @@ type loginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-func (h *Handler) Login(c *gin.Context) {
+func (h *LoginHandler) Login(c *gin.Context) {
 	var request loginRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})

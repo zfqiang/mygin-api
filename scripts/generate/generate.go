@@ -1,9 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"time"
 
-	"gorm.io/driver/mysql"
+	"mygin-api/pkg/config"
+	"mygin-api/pkg/database"
+
 	"gorm.io/gen"
 	"gorm.io/gorm"
 )
@@ -14,18 +18,30 @@ func main() {
 	// 注意：parseTime=True 对于时间类型字段正确映射至关重要
 	//  outPath ModelPkgPath 是相对当前项目目录的
 	g := gen.NewGenerator(gen.Config{
-		OutPath: "../../internal/dao/gend", // 生成代码的输出目录
+		OutPath: "internal/dao/gend", // 生成代码的输出目录
 		// OutFile:      "",                                            // 如果指定文件名，则所有代码生成到一个文件；否则按表名分文件
-		ModelPkgPath: "../../internal/model/genm",                   // 模型结构体生成的包路径
+		ModelPkgPath: "internal/model/genm",                         // 模型结构体生成的包路径
 		Mode:         gen.WithDefaultQuery | gen.WithQueryInterface, // 生成模式
 	})
 	// 【关键】显式声明需要导入的第三方包，否则生成的代码不会自动导入
 	g.WithImportPkgPath("github.com/shopspring/decimal")
 
-	// 使用 MySQL 驱动连接数据库
-	db, err := gorm.Open(mysql.Open("mygin:AtepehRfdsfG3sfX@tcp(113.45.0.59:3306)/mygin?charset=utf8mb4&parseTime=True&loc=Local"))
+	// 加载配置文件，如果加载失败则返回错误
+	cfg, err := config.Load()
 	if err != nil {
-		panic(fmt.Errorf("cannot establish db connection: %w", err))
+		fmt.Println("Failed to load config:", err)
+		return
+	}
+
+	// 创建一个10秒超时的启动上下文，用于控制初始化操作的超时时间
+	startupCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	// 初始化数据库连接，如果连接失败则返回错误
+	db, err := database.Open(startupCtx, cfg.MySQL)
+	if err != nil {
+		fmt.Println("Failed to open database:", err)
+		return
 	}
 
 	// 确保程序退出时关闭数据库连接，防止资源泄漏

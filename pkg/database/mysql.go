@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"mygin-api/internal/config"
+	"mygin-api/pkg/config"
 
 	mysqlDriverConfig "github.com/go-sql-driver/mysql"
 
