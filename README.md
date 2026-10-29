@@ -43,13 +43,18 @@
 
 RabbitMQ 客户端位于 `pkg/mq`，服务启动时建立连接并在退出时关闭；`/readyz` 会同时检查 MySQL、Redis 和 RabbitMQ。连接地址通过 `RABBITMQ_URL` 配置，支持 `amqp://` 和 `amqps://`。
 
-封装提供以下能力：
+框架提供常见消息模式。以下示例中的 `appCfg.RabbitMQ` 是应用中已初始化的客户端，`ctx` 应由请求或应用生命周期传入：
 
-- `DeclareQueue(ctx, queue)`：声明持久化队列，可重复调用。
-- `Publish(ctx, queue, body)`：发送持久化二进制消息；`PublishJSON(ctx, queue, value)` 会先将数据编码为 JSON。发送端等待 RabbitMQ 发布确认后才返回成功。
-- `Consume(ctx, queue, prefetch, handler)`：持续消费并手动确认。回调返回 `nil` 后自动 Ack；返回错误则 Nack 且不重新入队，避免坏消息无限重试。需要保留失败消息时，请为队列配置死信交换机；取消传入的上下文可以停止消费。
+| 模式 | 发送 | 消费/路由说明 |
+|---|---|---|
+| 单发单收（Hello World） | `Publish` / `PublishJSON` | `Consume` 消费指定队列 |
+| 工作队列（Work Queue） | `Publish` / `PublishJSON` | 多个消费者共同调用 `Consume` 同一队列，RabbitMQ 分发任务；可用 `prefetch` 控制未确认消息数 |
+| 发布/订阅（Publish/Subscribe） | `PublishToExchange(..., mq.ExchangeFanout, ...)` | 多个消费者以空队列名调用 `ConsumeFromExchange`，每个消费者创建自己的临时队列并收到广播 |
+| 路由（Routing） | `PublishToExchange(..., mq.ExchangeDirect, routingKey, ...)` | `ConsumeFromExchange` 用相同的精确 `bindingKey` 接收消息 |
+| 主题（Topics） | `PublishToExchange(..., mq.ExchangeTopic, routingKey, ...)` | `bindingKey` 支持 `*`（一个词）和 `#`（零个或多个词） |
+| RPC | `CallRPC` | 服务端调用 `ServeRPC`；使用 `CorrelationId` 与临时响应队列匹配请求和响应 |
 
-业务中可通过应用配置的 `RabbitMQ` 客户端调用这些方法。例如发送消息：
+#### 单发单收与工作队列
 
 ```go
 err := appCfg.RabbitMQ.PublishJSON(ctx, "orders", map[string]any{
@@ -57,25 +62,77 @@ err := appCfg.RabbitMQ.PublishJSON(ctx, "orders", map[string]any{
 })
 ```
 
-消费示例中，回调成功返回 `nil` 后框架自动确认消息；返回错误时消息会被拒绝：
+多实例对同一队列运行相同消费者即可形成工作队列；每个处理成功的消息由框架自动 Ack，回调返回错误则 Nack 且不重新入队：
 
 ```go
-type OrderEvent struct {
-    OrderID int `json:"order_id"`
-}
-
 err := appCfg.RabbitMQ.Consume(ctx, "orders", 10, func(ctx context.Context, delivery amqp.Delivery) error {
-    var event OrderEvent
-    if err := json.Unmarshal(delivery.Body, &event); err != nil {
-        return err
-    }
-    return orderService.Process(ctx, event)
+    return orderService.Process(ctx, delivery.Body)
 })
 ```
 
-消费代码需要导入 `context`、`encoding/json` 和 `github.com/rabbitmq/amqp091-go`，并按业务定义 `OrderEvent` 和 `orderService`。
+#### 发布/订阅、路由与主题
 
-队列由发送或消费方法自动声明，也可在业务启动时显式调用 `DeclareQueue`。RabbitMQ 日志写入 `logs/rabbitmq.log`；管理控制台默认位于 `http://localhost:15672`。
+消费端声明并绑定交换机和队列，发送端将消息发布到交换机。发布/订阅用空队列名创建每个消费者独立的临时队列；路由/主题可传持久化队列名以便服务重启后继续使用。消费函数会一直运行，应在消费者 goroutine 或独立 worker 中启动；发送端代码单独调用：
+
+```go
+// 消费端：发布/订阅；每个消费者分别运行，routingKey 和 bindingKey 会被 fanout 忽略。
+err := appCfg.RabbitMQ.ConsumeFromExchange(
+    ctx, "events", mq.ExchangeFanout, "", "", nil, 10, handleEvent,
+)
+```
+
+```go
+// 发送端：发布/订阅消息广播给所有已绑定的消费者队列。
+err := appCfg.RabbitMQ.PublishJSONToExchange(ctx, "events", mq.ExchangeFanout, "", event, nil)
+```
+
+```go
+// 路由：只有绑定键与 routingKey 完全相同的队列会收到消息。
+err := appCfg.RabbitMQ.ConsumeFromExchange(
+    ctx, "logs", mq.ExchangeDirect, "error-logs", "error", nil, 10, handleLog,
+)
+```
+
+```go
+// 发送端：routingKey 必须与消费者绑定键完全一致。
+err := appCfg.RabbitMQ.PublishToExchange(ctx, "logs", mq.ExchangeDirect, "error", []byte("failed"), nil)
+```
+
+```go
+// 主题：例如绑定 "order.*" 可匹配 "order.created"，不匹配 "order.item.created"。
+err := appCfg.RabbitMQ.ConsumeFromExchange(
+    ctx, "domain-events", mq.ExchangeTopic, "order-events", "order.*", nil, 10, handleEvent,
+)
+```
+
+```go
+// 发送端：routingKey 由点分隔，"order.*" 可匹配 "order.created"。
+err := appCfg.RabbitMQ.PublishToExchange(ctx, "domain-events", mq.ExchangeTopic, "order.created", body, nil)
+```
+
+常量 `mq.ExchangeDirect`、`mq.ExchangeFanout`、`mq.ExchangeTopic`、`mq.ExchangeHeaders` 分别表示 direct、fanout、topic、headers 交换机。headers 模式可用 `PublishToExchange` 传 `amqp.Table` 消息头，并用 `ConsumeFromExchange` 的 `bindingArgs`（例如 `amqp.Table{"x-match": "all", "format": "pdf"}`）配置匹配条件。更细粒度管理时可单独调用 `DeclareExchange`、`DeclareQueue` 和 `BindQueue`。
+
+#### RPC
+
+服务端消费 RPC 请求并返回字节响应；调用端使用带超时的 context 等待对应响应：
+
+```go
+// RPC 服务端
+err := appCfg.RabbitMQ.ServeRPC(ctx, "rpc_queue", 10, func(ctx context.Context, request amqp.Delivery) ([]byte, error) {
+    return processRequest(ctx, request.Body)
+})
+```
+
+```go
+// RPC 调用端：使用单独的 context 超时保护请求。
+rpcCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+defer cancel()
+response, err := appCfg.RabbitMQ.CallRPC(rpcCtx, "rpc_queue", requestBody)
+```
+
+普通消费回调返回 `nil` 后框架自动 Ack；返回错误则 Nack 且不重新入队，避免错误消息无限循环。需要保留失败消息时，为队列配置死信交换机。RPC handler 返回错误时请求同样会被拒绝而不生成响应，调用端应使用超时 context；如需向调用端传递业务错误，可将错误编码进 handler 返回的响应 body。消费方法会持续运行，取消传入的 context 可以停止消费。发送方法等待 RabbitMQ 发布确认后才返回成功；该确认表示 broker 已接收消息，不代表消息一定匹配到队列。RabbitMQ 日志写入 `logs/rabbitmq.log`；管理控制台默认位于 `http://localhost:15672`。
+
+以上示例使用 `mq "mygin-api/pkg/mq"`；消费回调的 `amqp.Delivery` 和 headers 参数来自 `github.com/rabbitmq/amqp091-go`。RPC 调用示例还需导入 `time`。请按业务定义 handler 和数据结构。
 
 ## 接口
 

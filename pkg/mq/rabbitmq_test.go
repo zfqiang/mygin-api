@@ -54,3 +54,38 @@ func TestQueueMethodsRejectEmptyName(t *testing.T) {
 		t.Fatal("空队列名称应返回错误")
 	}
 }
+
+func TestExchangeMethodsValidateArguments(t *testing.T) {
+	client := &RabbitMQ{}
+
+	if err := client.DeclareExchange(context.Background(), "", ExchangeDirect); err == nil {
+		t.Fatal("空交换机名称应返回错误")
+	}
+	if err := client.PublishToExchange(context.Background(), "events", "unknown", "", nil, nil); err == nil {
+		t.Fatal("不支持的交换机类型应返回错误")
+	}
+	if err := client.ConsumeFromExchange(context.Background(), "events", ExchangeFanout, "", "", nil, 0, func(context.Context, amqp.Delivery) error {
+		return nil
+	}); err == nil {
+		t.Fatal("预取数量为零时应返回错误")
+	}
+	if err := client.ConsumeFromExchange(context.Background(), "events", ExchangeFanout, "", "", nil, 1, nil); err == nil {
+		t.Fatal("处理函数为空时应返回错误")
+	}
+}
+
+func TestRPCMethodsValidateArguments(t *testing.T) {
+	client := &RabbitMQ{}
+
+	if _, err := client.CallRPC(context.Background(), "", nil); err == nil {
+		t.Fatal("RPC 队列名称为空时应返回错误")
+	}
+	if err := client.ServeRPC(context.Background(), "rpc", 0, func(context.Context, amqp.Delivery) ([]byte, error) {
+		return nil, nil
+	}); err == nil {
+		t.Fatal("RPC 预取数量为零时应返回错误")
+	}
+	if err := client.ServeRPC(context.Background(), "rpc", 1, nil); err == nil {
+		t.Fatal("RPC 处理函数为空时应返回错误")
+	}
+}
