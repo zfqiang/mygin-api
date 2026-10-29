@@ -18,6 +18,7 @@ type Loggers struct {
 	System   *Logger
 	Database *Logger
 	Redis    *Logger
+	RabbitMQ *Logger
 	writers  []io.Closer
 }
 
@@ -67,12 +68,23 @@ func New(directory string) (*Loggers, error) {
 		_ = database.Sync()
 		return nil, err
 	}
+	rabbitMQ, rabbitMQWriter, err := newLogger(filepath.Join(directory, "rabbitmq.log"), "rabbitmq")
+	if err != nil {
+		_ = systemWriter.Close()
+		_ = databaseWriter.Close()
+		_ = redisWriter.Close()
+		_ = system.Sync()
+		_ = database.Sync()
+		_ = redis.Sync()
+		return nil, err
+	}
 
 	return &Loggers{
 		System:   wrapLogger(system),
 		Database: wrapLogger(database),
 		Redis:    wrapLogger(redis),
-		writers:  []io.Closer{systemWriter, databaseWriter, redisWriter},
+		RabbitMQ: wrapLogger(rabbitMQ),
+		writers:  []io.Closer{systemWriter, databaseWriter, redisWriter, rabbitMQWriter},
 	}, nil
 }
 
@@ -84,6 +96,7 @@ func (l *Loggers) Sync() error {
 		wrapSyncError("system", l.System.base.Sync()),
 		wrapSyncError("database", l.Database.base.Sync()),
 		wrapSyncError("Redis", l.Redis.base.Sync()),
+		wrapSyncError("RabbitMQ", l.RabbitMQ.base.Sync()),
 	)
 }
 

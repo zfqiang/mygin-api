@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 	"mygin-api/pkg/logging"
+	"mygin-api/pkg/mq"
 )
 
 type Config struct {
@@ -27,6 +29,7 @@ type Config struct {
 	RateBurstIP         int
 	MySQL               MySQLConfig
 	Redis               RedisConfig
+	RabbitMQ            RabbitMQConfig
 	WorkPoolSize        int
 	WorkPoolIdleTimeout time.Duration
 }
@@ -45,11 +48,16 @@ type RedisConfig struct {
 	DB       int
 }
 
+type RabbitMQConfig struct {
+	URL string
+}
+
 type AppConfig struct {
 	Engine      *gin.Engine
 	Cfg         *Config
 	DB          *gorm.DB
 	RedisClient *redis.Client
+	RabbitMQ    *mq.RabbitMQ
 	Logger      *logging.Logger
 }
 
@@ -86,6 +94,9 @@ func Load() (Config, error) {
 			Addr:     getEnv("REDIS_ADDR", "127.0.0.1:6379"),
 			Password: getEnv("REDIS_PASSWORD", ""),
 			DB:       0,
+		},
+		RabbitMQ: RabbitMQConfig{
+			URL: getEnv("RABBITMQ_URL", "amqp://mygin:local_rabbitmq_password@127.0.0.1:5672/"),
 		},
 	}
 
@@ -153,6 +164,10 @@ func Load() (Config, error) {
 	}
 	if cfg.Redis.Addr == "" {
 		return Config{}, fmt.Errorf("REDIS_ADDR must not be empty")
+	}
+	rabbitMQURL, err := url.Parse(cfg.RabbitMQ.URL)
+	if err != nil || (rabbitMQURL.Scheme != "amqp" && rabbitMQURL.Scheme != "amqps") || rabbitMQURL.Host == "" {
+		return Config{}, fmt.Errorf("RABBITMQ_URL must be a valid amqp or amqps URL")
 	}
 
 	return cfg, nil

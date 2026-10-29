@@ -17,6 +17,7 @@ import (
 	"mygin-api/pkg/config"
 	"mygin-api/pkg/database"
 	"mygin-api/pkg/logging"
+	"mygin-api/pkg/mq"
 )
 
 func main() {
@@ -79,11 +80,19 @@ func run(loggers *logging.Loggers) error {
 	// 确保在函数退出时关闭 Redis 连接
 	defer redisClient.Close()
 
+	// 初始化 RabbitMQ 连接，并在服务退出时关闭连接。
+	rabbitMQ, err := mq.Open(startupCtx, cfg.RabbitMQ.URL, loggers.RabbitMQ)
+	if err != nil {
+		return err
+	}
+	defer rabbitMQ.Close()
+
 	// 创建路由处理器，传入配置、数据库连接、Redis 客户端和日志记录器
 	appCfg := &config.AppConfig{
 		Cfg:         &cfg,
 		DB:          db,
 		RedisClient: redisClient,
+		RabbitMQ:    rabbitMQ,
 		Logger:      loggers.System,
 	}
 	router := router.NewRouter()

@@ -11,6 +11,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/joho/godotenv v1.5.1
 	github.com/panjf2000/ants/v2 v2.12.1
+	github.com/rabbitmq/amqp091-go v1.16.0
 	github.com/redis/go-redis/v9 v9.7.0
 	github.com/shopspring/decimal v1.6.0
 	go.uber.org/zap v1.28.0

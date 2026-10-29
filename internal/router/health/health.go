@@ -71,6 +71,11 @@ func (r *HealthRouter) registerHealthRoutes() {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
 			return
 		}
+		if r.appCfg.RabbitMQ == nil || !r.appCfg.RabbitMQ.IsConnected() {
+			r.appCfg.Logger.Errorf("就绪检查失败 | dependency=RabbitMQ | error=connection unavailable")
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
+			return
+		}
 		// 所有检查通过，返回服务就绪状态
 		c.JSON(http.StatusOK, gin.H{"status": "ready"})
 	})
