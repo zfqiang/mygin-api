@@ -18,9 +18,9 @@ logs/                   # 运行日志
 
 ## 环境要求
 
-- Go 版本需符合 `go.mod` 中的声明（当前为 Go 1.26.0）。
+- Go 版本需符合 `go.mod` 中的声明（当前为 Go 1.27.3）。
 - Docker Compose
-- MySQL 8、Redis 7、RabbitMQ 3（可通过项目的 Compose 配置启动）
+- MySQL 8.0.45、Redis 8.0.6、RabbitMQ 3.12.4（可通过项目的 Compose 配置启动）
 
 ## 本地启动
 

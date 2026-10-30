@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:8.4
+    image: mysql:8.0.45
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-local_mysql_password}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-mygin_api}
@@ -9,13 +9,17 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent",
+        ]
       interval: 5s
       timeout: 3s
       retries: 20
 
   redis:
-    image: redis:7-alpine
+    image: redis:8.0.6
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -27,7 +31,7 @@ services:
       retries: 20
 
   rabbitmq:
-    image: rabbitmq:3-management-alpine
+    image: rabbitmq:3.12.4
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-mygin}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-local_rabbitmq_password}
