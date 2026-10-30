@@ -1,148 +1,96 @@
 # Gin + MySQL + Redis API 框架
 
-一个可运行的 Go API 服务骨架，包含 JWT 认证、CORS、Redis 固定窗口限流、RabbitMQ 消息队列封装、结构化请求日志、panic Recovery、MySQL/Redis/RabbitMQ 连接管理和健康检查。
+基于 Go 和 Gin 的 API 服务示例，集成 MySQL、Redis、RabbitMQ、JWT 认证、CORS、请求限流、结构化日志、健康检查及订单超时后台任务。
 
-## 目录结构
+## 项目结构
 
 ```text
-
+cmd/                    # 可执行程序入口
+  server/               # HTTP API 服务
+  schedule/             # 后台定时任务
+internal/               # 控制器、中间件、路由、模型、数据访问及业务逻辑
+pkg/                    # 配置、数据库、缓存、消息队列、日志和工具组件
+scripts/sql/            # 数据库 SQL 脚本
+scripts/generate/       # GORM Gen 代码生成入口
+test/                   # 并发测试和测试模型
+logs/                   # 运行日志
 ```
 
-重新生成数据库访问代码时，在项目根目录执行 `go run ./cmd/gen`。
+## 环境要求
+
+- Go 版本需符合 `go.mod` 中的声明（当前为 Go 1.26.0）。
+- Docker Compose
+- MySQL 8、Redis 7、RabbitMQ 3（可通过项目的 Compose 配置启动）
 
 ## 本地启动
 
-需要 Go 1.22+、Docker Compose。
+在项目根目录执行以下 PowerShell 命令：
 
-1. 复制 `.env.example` 为 `.env`，并替换 `JWT_SECRET`。`.env` 供 Docker Compose 读取；应用进程本身直接读取系统环境变量。
-2. 启动依赖：
+1. 创建本地配置文件并编辑配置：
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+   至少替换 `JWT_SECRET` 为不少于 32 字节的随机值，并确认 `REDIS_ADDR` 使用 `主机:端口` 格式（例如 `127.0.0.1:6379`）。如需修改 RabbitMQ 账号，也要同步更新 `RABBITMQ_URL`。
+
+2. 启动 MySQL、Redis 和 RabbitMQ：
 
    ```powershell
    docker compose up -d
    ```
 
-3. 在当前 PowerShell 会话设置应用环境变量并启动：
+   默认端口为 MySQL `3306`、Redis `6379`、RabbitMQ `5672`；RabbitMQ 管理页面端口为 `15672`。Compose 默认 RabbitMQ 用户为 `mygin`，默认开发密码为 `local_rabbitmq_password`。
+
+3. 启动 HTTP 服务：
 
    ```powershell
-   $env:APP_MODE = "debug"
-   $env:APP_PORT = "8080"
-   $env:JWT_SECRET = "dev-only-change-this-secret-before-use-123456789"
-   $env:MYSQL_HOST = "127.0.0.1"
-   $env:MYSQL_PORT = "3306"
-   $env:MYSQL_USER = "root"
-   $env:MYSQL_PASSWORD = "local_mysql_password"
-   $env:MYSQL_DATABASE = "mygin_api"
-   $env:REDIS_ADDR = "127.0.0.1:6379"
-   $env:RABBITMQ_URL = "amqp://mygin:local_rabbitmq_password@127.0.0.1:5672/"
    go run ./cmd/server
    ```
 
-配置项在进程启动时读取。`JWT_SECRET` 必填且至少 32 字节；其他配置见 `.env.example`。配置格式错误、MySQL、Redis 或 RabbitMQ 不可用时，服务会报错退出。Compose 默认创建 RabbitMQ 开发账号 `mygin`；需要自定义账号时，设置 `RABBITMQ_USER`、`RABBITMQ_PASSWORD`，并将 `RABBITMQ_URL` 配置为相同账号。示例密码仅用于本地开发，部署时必须替换。
+   服务默认监听 `:8080`。应用从项目根目录的 `.env` 加载配置；系统环境变量优先于 `.env` 中的值。
 
-## RabbitMQ 消息队列
+4. （可选）单独启动订单超时后台任务：
 
-RabbitMQ 客户端位于 `pkg/mq`，服务启动时建立连接并在退出时关闭；`/readyz` 会同时检查 MySQL、Redis 和 RabbitMQ。连接地址通过 `RABBITMQ_URL` 配置，支持 `amqp://` 和 `amqps://`。
+   ```powershell
+   go run ./cmd/schedule
+   ```
 
-框架提供常见消息模式。以下示例中的 `appCfg.RabbitMQ` 是应用中已初始化的客户端，`ctx` 应由请求或应用生命周期传入：
+   此进程也需要可用的 MySQL、Redis 和 `.env` 配置。
 
-| 模式 | 发送 | 消费/路由说明 |
-|---|---|---|
-| 单发单收（Hello World） | `Publish` / `PublishJSON` | `Consume` 消费指定队列 |
-| 工作队列（Work Queue） | `Publish` / `PublishJSON` | 多个消费者共同调用 `Consume` 同一队列，RabbitMQ 分发任务；可用 `prefetch` 控制未确认消息数 |
-| 发布/订阅（Publish/Subscribe） | `PublishToExchange(..., mq.ExchangeFanout, ...)` | 多个消费者以空队列名调用 `ConsumeFromExchange`，每个消费者创建自己的临时队列并收到广播 |
-| 路由（Routing） | `PublishToExchange(..., mq.ExchangeDirect, routingKey, ...)` | `ConsumeFromExchange` 用相同的精确 `bindingKey` 接收消息 |
-| 主题（Topics） | `PublishToExchange(..., mq.ExchangeTopic, routingKey, ...)` | `bindingKey` 支持 `*`（一个词）和 `#`（零个或多个词） |
-| RPC | `CallRPC` | 服务端调用 `ServeRPC`；使用 `CorrelationId` 与临时响应队列匹配请求和响应 |
+首次启动会检查各依赖的连接，并自动迁移认证用的 `users` 表。`scripts/sql/mygin.sql` 包含商品、订单等业务表结构；如需使用相关业务功能，需自行导入数据库。该 SQL 脚本包含 `DROP TABLE IF EXISTS`，执行前请确认目标数据库并备份已有数据。
 
-#### 单发单收与工作队列
+## 配置说明
 
-```go
-err := appCfg.RabbitMQ.PublishJSON(ctx, "orders", map[string]any{
-    "order_id": 123,
-})
-```
+配置示例见 `.env.example`。主要配置如下：
 
-多实例对同一队列运行相同消费者即可形成工作队列；每个处理成功的消息由框架自动 Ack，回调返回错误则 Nack 且不重新入队：
+| 配置项 | 说明 |
+|---|---|
+| `APP_MODE`、`APP_PORT` | Gin 运行模式（`debug`、`release` 或 `test`）及 HTTP 端口 |
+| `JWT_SECRET`、`JWT_ISSUER`、`JWT_TTL` | JWT 密钥、签发者和有效期；密钥至少 32 字节 |
+| `CORS_ORIGINS` | 逗号分隔的允许来源 |
+| `RATE_LIMIT`、`RATE_BURST` | HTTP 服务全局令牌桶限流速率（请求/秒）及突发容量 |
+| `RATE_LIMIT_IP`、`RATE_BURST_IP` | 健康检查路由的单 IP 限流速率及突发容量 |
+| `MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_DATABASE` | MySQL 连接配置 |
+| `REDIS_ADDR`、`REDIS_PASSWORD`、`REDIS_DB` | Redis 连接配置；地址格式为 `主机:端口` |
+| `RABBITMQ_URL` | RabbitMQ AMQP/AMQPS 连接地址 |
+| `WORK_POOL_SIZE`、`WORK_POOL_IDLE_TIMEOUT` | 工作池配置 |
 
-```go
-err := appCfg.RabbitMQ.Consume(ctx, "orders", 10, func(ctx context.Context, delivery amqp.Delivery) error {
-    return orderService.Process(ctx, delivery.Body)
-})
-```
+`.env.example` 中的密码仅用于本地开发，部署前必须替换。配置错误、密钥不符合要求或依赖服务无法连接时，服务会启动失败并输出错误。
 
-#### 发布/订阅、路由与主题
-
-消费端声明并绑定交换机和队列，发送端将消息发布到交换机。发布/订阅用空队列名创建每个消费者独立的临时队列；路由/主题可传持久化队列名以便服务重启后继续使用。消费函数会一直运行，应在消费者 goroutine 或独立 worker 中启动；发送端代码单独调用：
-
-```go
-// 消费端：发布/订阅；每个消费者分别运行，routingKey 和 bindingKey 会被 fanout 忽略。
-err := appCfg.RabbitMQ.ConsumeFromExchange(
-    ctx, "events", mq.ExchangeFanout, "", "", nil, 10, handleEvent,
-)
-```
-
-```go
-// 发送端：发布/订阅消息广播给所有已绑定的消费者队列。
-err := appCfg.RabbitMQ.PublishJSONToExchange(ctx, "events", mq.ExchangeFanout, "", event, nil)
-```
-
-```go
-// 路由：只有绑定键与 routingKey 完全相同的队列会收到消息。
-err := appCfg.RabbitMQ.ConsumeFromExchange(
-    ctx, "logs", mq.ExchangeDirect, "error-logs", "error", nil, 10, handleLog,
-)
-```
-
-```go
-// 发送端：routingKey 必须与消费者绑定键完全一致。
-err := appCfg.RabbitMQ.PublishToExchange(ctx, "logs", mq.ExchangeDirect, "error", []byte("failed"), nil)
-```
-
-```go
-// 主题：例如绑定 "order.*" 可匹配 "order.created"，不匹配 "order.item.created"。
-err := appCfg.RabbitMQ.ConsumeFromExchange(
-    ctx, "domain-events", mq.ExchangeTopic, "order-events", "order.*", nil, 10, handleEvent,
-)
-```
-
-```go
-// 发送端：routingKey 由点分隔，"order.*" 可匹配 "order.created"。
-err := appCfg.RabbitMQ.PublishToExchange(ctx, "domain-events", mq.ExchangeTopic, "order.created", body, nil)
-```
-
-常量 `mq.ExchangeDirect`、`mq.ExchangeFanout`、`mq.ExchangeTopic`、`mq.ExchangeHeaders` 分别表示 direct、fanout、topic、headers 交换机。headers 模式可用 `PublishToExchange` 传 `amqp.Table` 消息头，并用 `ConsumeFromExchange` 的 `bindingArgs`（例如 `amqp.Table{"x-match": "all", "format": "pdf"}`）配置匹配条件。更细粒度管理时可单独调用 `DeclareExchange`、`DeclareQueue` 和 `BindQueue`。
-
-#### RPC
-
-服务端消费 RPC 请求并返回字节响应；调用端使用带超时的 context 等待对应响应：
-
-```go
-// RPC 服务端
-err := appCfg.RabbitMQ.ServeRPC(ctx, "rpc_queue", 10, func(ctx context.Context, request amqp.Delivery) ([]byte, error) {
-    return processRequest(ctx, request.Body)
-})
-```
-
-```go
-// RPC 调用端：使用单独的 context 超时保护请求。
-rpcCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-defer cancel()
-response, err := appCfg.RabbitMQ.CallRPC(rpcCtx, "rpc_queue", requestBody)
-```
-
-普通消费回调返回 `nil` 后框架自动 Ack；返回错误则 Nack 且不重新入队，避免错误消息无限循环。需要保留失败消息时，为队列配置死信交换机。RPC handler 返回错误时请求同样会被拒绝而不生成响应，调用端应使用超时 context；如需向调用端传递业务错误，可将错误编码进 handler 返回的响应 body。消费方法会持续运行，取消传入的 context 可以停止消费。发送方法等待 RabbitMQ 发布确认后才返回成功；该确认表示 broker 已接收消息，不代表消息一定匹配到队列。RabbitMQ 日志写入 `logs/rabbitmq.log`；管理控制台默认位于 `http://localhost:15672`。
-
-以上示例使用 `mq "mygin-api/pkg/mq"`；消费回调的 `amqp.Delivery` 和 headers 参数来自 `github.com/rabbitmq/amqp091-go`。RPC 调用示例还需导入 `time`。请按业务定义 handler 和数据结构。
-
-## 接口
+## HTTP 接口
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/healthz` | 进程存活检查 |
-| GET | `/readyz` | 检查 MySQL、Redis 和 RabbitMQ 可用性 |
-| GET | `/api/v1/ping` | 示例公开接口 |
-| POST | `/api/v1/auth/login` | 使用数据库中的用户名和密码登录，返回 JWT |
-| GET | `/api/v1/me` | 示例 JWT 保护接口，要求 `Authorization: Bearer <token>` |
+| GET | `/healthz/` | 存活检查；仅允许本机访问 |
+| GET | `/healthz/readyz` | 就绪检查 MySQL、Redis 和 RabbitMQ；仅允许本机访问 |
+| GET | `/api/ping` | 示例公开接口 |
+| POST | `/api/auth/login` | 用户名和密码校验成功后签发 JWT |
+| GET | `/api/me` | JWT 保护的示例接口 |
+| GET | `/gen/orders` | 生成测试订单数据；仅允许本机访问 |
+| GET | `/gen/products` | 生成测试商品数据；仅允许本机访问 |
+| GET | `/activity/secKill/init` | 初始化秒杀商品库存到 Redis |
+| POST | `/activity/secKill/start` | 秒杀示例接口 |
 
 登录请求示例：
 
@@ -153,19 +101,35 @@ response, err := appCfg.RabbitMQ.CallRPC(rpcCtx, "rpc_queue", requestBody)
 }
 ```
 
-成功响应包含 `access_token`、`token_type`、`expires_in` 和基本用户信息；用 `Authorization: Bearer <access_token>` 访问 `/api/v1/me`。用户名查找和密码校验失败均返回相同的 `401` 响应。密码以 bcrypt 哈希保存，不会返回密码或哈希值。服务启动时会自动创建/更新 `users` 表；该接口不提供注册，新增用户时应使用 `auth.HashPassword` 生成 `PasswordHash` 后再写入数据库。
+登录成功响应包含 `access_token`、`token_type`、`expires_in` 和基本用户信息。访问 `/api/me` 时，在请求头中传入 `Authorization: Bearer <access_token>`。用户名不存在或密码错误时均返回相同的 `401` 响应；密码使用 bcrypt 校验。项目没有提供注册接口，需在数据库中预先创建用户，并保存由 `auth.HashPassword` 生成的密码哈希。
 
-## 中间件行为
+`/gen/*` 是本机限定的测试数据接口；秒杀相关接口为示例业务逻辑，不应未经评估直接用于生产环境。
 
-- **JWT**：仅接受 HS256；校验签名、issuer、过期时间和用户 ID。
-- **CORS**：`CORS_ORIGINS` 为逗号分隔的精确来源列表；设置 `*` 可允许任意来源，但不启用 credentials。
-- **限流**：Redis Lua 脚本原子执行固定窗口计数，默认每 IP 每分钟 100 次；Redis 不可用时返回 `503`，超限返回 `429` 和 `Retry-After`。
-- **日志 / Recovery**：Zap 可读控制台格式日志分别写入 `logs/system.log`、`logs/database.log`、`logs/redis.log` 和 `logs/rabbitmq.log`，采用统一的时间、级别、分类、调用位置及 `消息 | 字段=值` 格式；应用日志采用清晰的中文事件描述。统一日志器提供格式化方法 `LogF`、`WarnF`、`Errorf`、`Fatal`。日志按 100 MB 切分，保留最多 7 个备份和 30 天。数据库日志清晰记录慢查询及错误，SQL 参数默认脱敏；Redis 日志记录命令名、耗时和错误，不记录命令参数。RabbitMQ 日志记录连接、消息发送和消费处理失败信息。panic 记录堆栈并返回通用 `500`，不会向客户端泄漏异常细节。
-- **代理 IP**：默认不信任反向代理头，避免伪造客户端 IP。部署在代理后时，应在 `internal/router/router.go` 中按部署网络配置可信代理。
+## 中间件与运行行为
+
+- **JWT**：仅接受 HS256，并校验签名、issuer、过期时间和用户 ID。
+- **CORS**：`CORS_ORIGINS` 使用逗号分隔的精确来源列表；允许凭据时不要将来源设为 `*`。
+- **限流**：全局限流使用进程内令牌桶；健康检查路由额外按客户端 IP 限流。超限返回 `429`。限流状态不会在多个服务实例间共享。
+- **代理 IP**：Gin 默认不信任代理头，客户端 IP 来源于直接连接。部署在反向代理后时，需根据部署网络审慎配置可信代理。
+- **健康检查访问**：健康检查路由仅允许回环地址访问；容器或外部负载均衡器探测时需确认网络访问方式。
+- **日志**：系统、数据库、Redis 和 RabbitMQ 日志分别写入 `logs/system.log`、`logs/database.log`、`logs/redis.log` 和 `logs/rabbitmq.log`，日志文件按大小轮转。
+- **优雅关闭**：HTTP 服务和后台任务接收终止信号后停止；HTTP 服务会等待在途请求完成。
+- **RabbitMQ**：客户端在 HTTP 服务启动时连接，在进程退出时关闭。就绪检查会验证 RabbitMQ 连接状态。
+
+RabbitMQ 客户端封装位于 `pkg/mq`，支持队列发布/消费、JSON 消息、Exchange（direct、fanout、topic、headers）以及 RPC。消费回调返回成功时自动 Ack，返回错误时 Nack 且不重新入队；需要处理失败消息时可为队列配置死信交换机。AMQP 管理控制台默认地址为 `http://localhost:15672`。
+
+## 数据库代码生成
+
+GORM Gen 的生成入口位于 `scripts/generate/generate.go`，模型和查询代码分别位于 `internal/model/genm` 与 `internal/repository/gend`。生成前请检查该脚本中的目标表配置、数据库连接和输出路径，再从项目根目录运行：
+
+```powershell
+go run ./scripts/generate
+```
 
 ## 测试与构建
 
 ```powershell
 go test ./...
 go build ./cmd/server
+go build ./cmd/schedule
 ```

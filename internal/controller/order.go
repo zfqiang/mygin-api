@@ -8,15 +8,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type OrderService struct {
+type OrderController struct {
 	appCfg *config.AppConfig
 }
 
-func NewOrderService(appCfg *config.AppConfig) *OrderService {
-	return &OrderService{appCfg: appCfg}
+func NewOrderController(appCfg *config.AppConfig) *OrderController {
+	return &OrderController{appCfg: appCfg}
 }
 
-func (o *OrderService) GenTestOrderData(c *gin.Context) {
+func (o *OrderController) GenTestOrderData(c *gin.Context) {
 	count, err := utils.StrToInt(c.DefaultQuery("count", "10"))
 	if err != nil {
 		c.JSON(200, gin.H{"status": "error", "message": err.Error()})
