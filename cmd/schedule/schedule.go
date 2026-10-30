@@ -80,7 +80,6 @@ func run(loggers *logging.Loggers) error {
 	if err != nil {
 		return err
 	}
-	defer rabbitMQ.Close()
 
 	// 创建路由处理器，传入配置、数据库连接、Redis 客户端和日志记录器
 	appCfg := &config.AppConfig{
@@ -90,6 +89,13 @@ func run(loggers *logging.Loggers) error {
 		RabbitMQ:    rabbitMQ,
 		Logger:      loggers.System,
 	}
+	defer func() {
+		if appCfg.RabbitMQ != nil {
+			if err := appCfg.RabbitMQ.Close(); err != nil {
+				loggers.System.Errorf("关闭 RabbitMQ 连接失败 | error=%v", err)
+			}
+		}
+	}()
 
 	// 当收到信号时，cancel() 会被调用，所有派生的 ctx 都会收到 Done 信号
 	ctx, cancel := context.WithCancel(context.Background())
@@ -111,13 +117,17 @@ func run(loggers *logging.Loggers) error {
 	regEvent := event.NewEvent(appCfg)
 	go func() {
 		defer wg.Done()
-		loggers.System.LogF("注册事件处理协程启动")
+		loggers.System.LogF("注册事件消费者协程已启动")
 		for ctx.Err() == nil {
 			if err := regEvent.ConsumeRegistrationEvents(ctx); err != nil {
 				if ctx.Err() != nil {
 					return
 				}
 				loggers.System.Errorf("注册事件消费失败 | error=%v", err)
+				if closeErr := appCfg.RabbitMQ.Close(); closeErr != nil {
+					loggers.System.Errorf("关闭异常 RabbitMQ 连接失败 | error=%v", closeErr)
+				}
+				appCfg.RabbitMQ = nil
 			} else if ctx.Err() != nil {
 				return
 			} else {
@@ -129,6 +139,20 @@ func run(loggers *logging.Loggers) error {
 				return
 			case <-time.After(time.Second):
 			}
+
+			if appCfg.RabbitMQ == nil || !appCfg.RabbitMQ.IsConnected() {
+				reconnectCtx, reconnectCancel := context.WithTimeout(ctx, 10*time.Second)
+				newRabbitMQ, err := mq.Open(reconnectCtx, cfg.RabbitMQ.URL, loggers.RabbitMQ)
+				reconnectCancel()
+				if err != nil {
+					if ctx.Err() == nil {
+						loggers.System.Errorf("重新连接 RabbitMQ 失败 | error=%v", err)
+					}
+					continue
+				}
+				appCfg.RabbitMQ = newRabbitMQ
+				loggers.System.LogF("RabbitMQ 重连成功，准备恢复注册事件消费")
+			}
 		}
 	}()
 	// defer regEvent.Shutdown()
@@ -136,6 +160,7 @@ func run(loggers *logging.Loggers) error {
 	// 2. 监听系统信号 (SIGINT: Ctrl+C, SIGTERM: Kill/Docker Stop)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sigChan)
 
 	// ------------------------
 

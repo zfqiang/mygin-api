@@ -147,7 +147,7 @@ logs/                   # 运行日志
 - **优雅关闭**：HTTP 服务和后台任务接收终止信号后停止；HTTP 服务会等待在途请求完成。
 - **RabbitMQ**：客户端在 HTTP 服务启动时连接，在进程退出时关闭。就绪检查会验证 RabbitMQ 连接状态。
 
-RabbitMQ 客户端封装位于 `pkg/mq`，支持队列发布/消费、JSON 消息、Exchange（direct、fanout、topic、headers）以及 RPC。消费回调返回成功时自动 Ack，返回错误时 Nack 且不重新入队；需要处理失败消息时可为队列配置死信交换机。AMQP 管理控制台默认地址为 `http://localhost:15672`。
+RabbitMQ 客户端封装位于 `pkg/mq`，支持队列发布/消费、JSON 消息、Exchange（direct、fanout、topic、headers）以及 RPC。所有消费端均关闭 auto-ack：处理成功后显式 Ack，处理失败后 Nack 且不重新入队；服务取消时尚未处理的消息会重新入队。需要保留失败消息时，可为队列配置死信交换机。AMQP 管理控制台默认地址为 `http://localhost:15672`。
 
 ## 数据库代码生成
 

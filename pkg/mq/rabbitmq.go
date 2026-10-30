@@ -239,7 +239,7 @@ func (r *RabbitMQ) CallRPC(ctx context.Context, queue string, request []byte) ([
 	if err != nil {
 		return nil, fmt.Errorf("声明 RabbitMQ RPC 响应队列: %w", err)
 	}
-	replies, err := channel.Consume(replyQueue.Name, "", true, true, false, false, nil)
+	replies, err := channel.Consume(replyQueue.Name, "", false, true, false, false, nil)
 	if err != nil {
 		return nil, fmt.Errorf("监听 RabbitMQ RPC 响应: %w", err)
 	}
@@ -253,6 +253,10 @@ func (r *RabbitMQ) CallRPC(ctx context.Context, queue string, request []byte) ([
 			case delivery, ok := <-replies:
 				if !ok {
 					replyErr <- fmt.Errorf("RabbitMQ RPC 响应通道已关闭")
+					return
+				}
+				if err := delivery.Ack(false); err != nil {
+					replyErr <- fmt.Errorf("确认 RabbitMQ RPC 响应: %w", err)
 					return
 				}
 				if delivery.CorrelationId == correlationID {
@@ -438,7 +442,7 @@ func (r *RabbitMQ) publishOnChannel(ctx context.Context, channel *amqp.Channel, 
 	return nil
 }
 
-// Consume 持续消费指定队列。处理成功后自动 Ack；处理失败后 Nack 且不重新入队，
+// Consume 持续消费指定队列。处理成功后手动 Ack；处理失败后 Nack 且不重新入队，
 // 避免错误消息无限循环，重要场景可为队列配置死信交换机。
 func (r *RabbitMQ) Consume(ctx context.Context, queue string, prefetch int, handler func(context.Context, amqp.Delivery) error) error {
 	if queue == "" {
