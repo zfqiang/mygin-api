@@ -9,11 +9,13 @@ import (
 	"syscall"
 	"time"
 
+	"mygin-api/internal/event"
 	"mygin-api/internal/mission"
 	"mygin-api/pkg/cache"
 	"mygin-api/pkg/config"
 	"mygin-api/pkg/database"
 	"mygin-api/pkg/logging"
+	"mygin-api/pkg/mq"
 	_ "net/http/pprof"
 )
 
@@ -74,11 +76,18 @@ func run(loggers *logging.Loggers) error {
 	// 确保在函数退出时关闭 Redis 连接
 	defer redisClient.Close()
 
+	rabbitMQ, err := mq.Open(startupCtx, cfg.RabbitMQ.URL, loggers.RabbitMQ)
+	if err != nil {
+		return err
+	}
+	defer rabbitMQ.Close()
+
 	// 创建路由处理器，传入配置、数据库连接、Redis 客户端和日志记录器
 	appCfg := &config.AppConfig{
 		Cfg:         &cfg,
 		DB:          db,
 		RedisClient: redisClient,
+		RabbitMQ:    rabbitMQ,
 		Logger:      loggers.System,
 	}
 
@@ -87,17 +96,42 @@ func run(loggers *logging.Loggers) error {
 	defer cancel()
 	var wg sync.WaitGroup // 创建一个 WaitGroup，用于等待所有后台协程完成
 
-	// 1. 创建根 Context，用于控制整个应用的生命周期
-	//订单超时处理
-
-	// 1. 启动订单超时处理协程
+	// 创建根 Context，用于控制整个应用的生命周期
+	// 启动订单超时处理协程
 	orderTimeout := mission.NewOrderTimeout(appCfg)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		loggers.System.LogF("订单超时处理协程启动")
 		orderTimeout.Run(ctx)
 	}()
 	defer orderTimeout.Shutdown() // 确保在函数退出时关闭订单超时处理协程
+
+	wg.Add(1)
+	regEvent := event.NewEvent(appCfg)
+	go func() {
+		defer wg.Done()
+		loggers.System.LogF("注册事件处理协程启动")
+		for ctx.Err() == nil {
+			if err := regEvent.ConsumeRegistrationEvents(ctx); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				loggers.System.Errorf("注册事件消费失败 | error=%v", err)
+			} else if ctx.Err() != nil {
+				return
+			} else {
+				loggers.System.WarnF("注册事件消费者意外停止，将尝试重新启动")
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(time.Second):
+			}
+		}
+	}()
+	// defer regEvent.Shutdown()
 
 	// 2. 监听系统信号 (SIGINT: Ctrl+C, SIGTERM: Kill/Docker Stop)
 	sigChan := make(chan os.Signal, 1)

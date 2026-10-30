@@ -58,7 +58,7 @@ logs/                   # 运行日志
 
    此进程也需要可用的 MySQL、Redis 和 `.env` 配置。
 
-首次启动会检查各依赖的连接，并自动迁移认证用的 `users` 表。`scripts/sql/mygin.sql` 包含商品、订单等业务表结构；如需使用相关业务功能，需自行导入数据库。该 SQL 脚本包含 `DROP TABLE IF EXISTS`，执行前请确认目标数据库并备份已有数据。
+首次启动会检查各依赖的连接，并自动迁移认证用的 `users` 表及积分账户 `user_points` 表。`scripts/sql/mygin.sql` 包含商品、订单等业务表结构；如需使用相关业务功能，需自行导入数据库。该 SQL 脚本包含 `DROP TABLE IF EXISTS`，执行前请确认目标数据库并备份已有数据。
 
 ## 配置说明
 
@@ -74,6 +74,7 @@ logs/                   # 运行日志
 | `MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_DATABASE` | MySQL 连接配置 |
 | `REDIS_ADDR`、`REDIS_PASSWORD`、`REDIS_DB` | Redis 连接配置；地址格式为 `主机:端口` |
 | `RABBITMQ_URL` | RabbitMQ AMQP/AMQPS 连接地址 |
+| `EMAIL_HOST`、`EMAIL_PORT`、`EMAIL_USER`、`EMAIL_PASSWORD` | 欢迎邮件 SMTP 配置；全部填写后才会发送邮件 |
 | `WORK_POOL_SIZE`、`WORK_POOL_IDLE_TIMEOUT` | 工作池配置 |
 
 `.env.example` 中的密码仅用于本地开发，部署前必须替换。配置错误、密钥不符合要求或依赖服务无法连接时，服务会启动失败并输出错误。
@@ -85,6 +86,7 @@ logs/                   # 运行日志
 | GET | `/healthz/` | 存活检查；仅允许本机访问 |
 | GET | `/healthz/readyz` | 就绪检查 MySQL、Redis 和 RabbitMQ；仅允许本机访问 |
 | GET | `/api/ping` | 示例公开接口 |
+| POST | `/api/auth/register` | 注册用户并投递异步欢迎任务 |
 | POST | `/api/auth/login` | 用户名和密码校验成功后签发 JWT |
 | GET | `/api/me` | JWT 保护的示例接口 |
 | GET | `/gen/orders` | 生成测试订单数据；仅允许本机访问 |
@@ -117,7 +119,20 @@ logs/                   # 运行日志
 }
 ```
 
-登录成功响应包含 `access_token`、`token_type`、`expires_in` 和基本用户信息。访问 `/api/me` 时，在请求头中传入 `Authorization: Bearer <access_token>`。用户名不存在或密码错误时均返回相同的 `401` 响应；密码使用 bcrypt 校验。项目没有提供注册接口，需在数据库中预先创建用户，并保存由 `auth.HashPassword` 生成的密码哈希。
+注册请求需要用户名、邮箱、手机号和至少 8 位密码，邮箱和手机号必须唯一：
+
+```json
+{
+  "username": "alice",
+  "email": "alice@example.com",
+  "phone": "+8613800000000",
+  "password": "your-password"
+}
+```
+
+注册成功后，API 将用户信息保存到数据库并立即返回“注册成功”，随后由独立 goroutine 异步发布注册事件到 RabbitMQ 的 `user.registered` 持久化队列；HTTP 服务中的后台消费者异步发送欢迎邮件、初始化 MySQL 用户积分账户（初始积分为 0）并处理短信通知。SMTP 配置未填写时会记录日志并跳过邮件；当前未接入短信服务商，短信任务会记录为跳过。RabbitMQ 发布失败会记录错误日志，但不会影响已成功的注册响应；当前发布操作没有持久化 outbox 或自动重试保障。用户注册信息和密码哈希保存在数据库中，密码使用 bcrypt 加密。
+
+登录成功响应包含 `access_token`、`token_type`、`expires_in` 和基本用户信息。访问 `/api/me` 时，在请求头中传入 `Authorization: Bearer <access_token>`。用户名不存在或密码错误时均返回相同的 `401` 响应；密码使用 bcrypt 校验。
 
 `/gen/*` 是本机限定的测试数据接口；秒杀相关接口为示例业务逻辑，不应未经评估直接用于生产环境。
 

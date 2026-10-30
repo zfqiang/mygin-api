@@ -25,7 +25,7 @@ func NewHealth(appCfg *config.AppConfig) *HealthRouter {
 
 func (r *HealthRouter) RegisterRoutes() {
 	// 注册健康检查路由
-	r.registerHealthRoutes()
+	// r.registerHealthRoutes()
 	// 注册pprof路由
 	// r.registerPprofRoutes()
 }

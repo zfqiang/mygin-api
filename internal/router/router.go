@@ -49,7 +49,7 @@ func (router *RouterCfg) New(appCfg *config.AppConfig) http.Handler {
 	gen.RegisterRoutes()
 
 	engine.NoRoute(func(c *gin.Context) {
-		utils.Failure(c, http.StatusNotFound, "not found")
+		utils.Failure(c, http.StatusNotFound, "route not found")
 	})
 
 	return engine

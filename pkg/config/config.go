@@ -30,6 +30,7 @@ type Config struct {
 	MySQL               MySQLConfig
 	Redis               RedisConfig
 	RabbitMQ            RabbitMQConfig
+	Email               EmailConfig
 	WorkPoolSize        int
 	WorkPoolIdleTimeout time.Duration
 }
@@ -50,6 +51,13 @@ type RedisConfig struct {
 
 type RabbitMQConfig struct {
 	URL string
+}
+
+type EmailConfig struct {
+	Host     string
+	Port     string
+	User     string
+	Password string
 }
 
 type AppConfig struct {
@@ -98,6 +106,13 @@ func Load() (Config, error) {
 		RabbitMQ: RabbitMQConfig{
 			URL: getEnv("RABBITMQ_URL", "amqp://mygin:local_rabbitmq_password@127.0.0.1:5672/"),
 		},
+	}
+
+	cfg.Email = EmailConfig{
+		Host:     getEnv("EMAIL_HOST", ""),
+		Port:     getEnv("EMAIL_PORT", "587"),
+		User:     getEnv("EMAIL_USER", ""),
+		Password: getEnv("EMAIL_PASSWORD", ""),
 	}
 
 	if cfg.JWTTTL, err = durationEnv("JWT_TTL", cfg.JWTTTL); err != nil {

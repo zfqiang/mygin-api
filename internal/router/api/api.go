@@ -37,6 +37,7 @@ func (r *ApiRouter) RegisterAPIRoutes() {
 		utils.Success(c, gin.H{"user_id": userID})
 	})
 	api.POST("/auth/login", auth.NewLoginHandler(r.appCfg).Login)
+	api.POST("/auth/register", controller.NewUserController(r.appCfg).Register)
 }
 
 func (r *ApiRouter) RegisterActivityRoutes() {

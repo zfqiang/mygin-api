@@ -18,10 +18,19 @@ import (
 
 type User struct {
 	ID           uint64 `gorm:"primaryKey"`
-	Username     string `gorm:"size:64;not null;uniqueIndex"`
+	Username     string `gorm:"size:64;not null;uniqueIndex:idx_users_username"`
+	Email        string `gorm:"size:254;uniqueIndex:idx_users_email"`
+	Phone        string `gorm:"size:20;uniqueIndex:idx_users_phone"`
 	PasswordHash string `gorm:"size:60;not null"`
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+type UserPoints struct {
+	UserID    uint64 `gorm:"primaryKey"`
+	Balance   int64  `gorm:"not null;default:0"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Migrate 是一个数据库迁移函数，用于自动创建或更新数据库表结构
@@ -35,7 +44,7 @@ type User struct {
 func Migrate(db *gorm.DB) error {
 	// 使用 AutoMigrate 方法自动迁移 User 结构体对应的数据库表
 	// 如果迁移失败，则返回一个包含错误信息的格式化错误
-	if err := db.AutoMigrate(&User{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &UserPoints{}); err != nil {
 		return fmt.Errorf("migrate users table: %w", err)
 	}
 	// 迁移成功，返回 nil 表示无错误

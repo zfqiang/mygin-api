@@ -30,10 +30,12 @@ func main() {
 	// 1. 连接数据库
 	// 注意：parseTime=True 对于时间类型字段正确映射至关重要
 	//  outPath ModelPkgPath 是相对当前项目目录的
+	envPath, _ := config.LoadProjectRoot()
+	fmt.Println(envPath)
 	g := gen.NewGenerator(gen.Config{
-		OutPath: "../../internal/repository/gend", // 生成代码的输出目录
+		// OutPath: envPath + "/internal/repository/gend", // 生成代码的输出目录
 		// OutFile:      "",                                            // 如果指定文件名，则所有代码生成到一个文件；否则按表名分文件
-		ModelPkgPath: "../../internal/model/genm",                   // 模型结构体生成的包路径
+		ModelPkgPath: envPath + "/internal/model/genm",              // 模型结构体生成的包路径
 		Mode:         gen.WithDefaultQuery | gen.WithQueryInterface, // 生成模式
 	})
 	// 【关键】显式声明需要导入的第三方包，否则生成的代码不会自动导入

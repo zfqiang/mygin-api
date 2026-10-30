@@ -110,15 +110,32 @@ CREATE TABLE `products`  (
 -- ----------------------------
 -- Table structure for users
 -- ----------------------------
+DROP TABLE IF EXISTS `user_points`;
 DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users`  (
   `id` bigint(0) UNSIGNED NOT NULL AUTO_INCREMENT,
   `username` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
+  `email` varchar(254) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
+  `phone` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `password_hash` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `created_at` datetime(3) NULL DEFAULT NULL,
   `updated_at` datetime(3) NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `idx_users_username`(`username`) USING BTREE
+  UNIQUE INDEX `idx_users_username`(`username`) USING BTREE,
+  UNIQUE INDEX `idx_users_email`(`email`) USING BTREE,
+  UNIQUE INDEX `idx_users_phone`(`phone`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
+
+-- ----------------------------
+-- Table structure for user_points
+-- ----------------------------
+CREATE TABLE `user_points` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int DEFAULT '0',
+  `balance` decimal(18,2) DEFAULT '0.00',
+  `create_at` datetime DEFAULT NULL,
+  `updaet_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

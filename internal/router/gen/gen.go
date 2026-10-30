@@ -20,7 +20,7 @@ func NewGenRouter(appCfg *config.AppConfig) *GenRouter {
 // 该方法用于调用具体的路由注册函数
 func (r *GenRouter) RegisterRoutes() {
 	// 调用注册通用路由的方法
-	r.RegisterGenRoutes()
+	// r.RegisterGenRoutes()
 }
 
 // RegisterGenRoutes 注册生成测试数据的路由
