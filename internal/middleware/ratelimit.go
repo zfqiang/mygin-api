@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
 	"mygin-api/pkg/logging"
+	"mygin-api/pkg/utils"
 )
 
 // 使用示例:
@@ -24,10 +25,7 @@ func GlobalRateLimitMiddleware(limit rate.Limit, burst int, logger *logging.Logg
 				c.ClientIP(),
 				c.Request.URL.Path,
 			)
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error": "too many requests",
-			})
-			c.Abort()
+			utils.AbortFailure(c, http.StatusTooManyRequests, "too many requests")
 			return
 		}
 		c.Next()

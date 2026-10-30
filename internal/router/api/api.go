@@ -1,12 +1,11 @@
 package api
 
 import (
-	"net/http"
-
 	"mygin-api/internal/controller"
 	"mygin-api/internal/middleware"
 	"mygin-api/internal/service/auth"
 	"mygin-api/pkg/config"
+	"mygin-api/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,11 +30,11 @@ func (r *ApiRouter) RegisterRoutes() {
 func (r *ApiRouter) RegisterAPIRoutes() {
 	api := r.appCfg.Engine.Group("/api")
 	api.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"message": "pong"})
+		utils.Success(c, gin.H{"message": "pong"})
 	})
 	api.GET("/me", middleware.JWTAuth(r.appCfg.Cfg.JWTSecret, r.appCfg.Cfg.JWTIssuer), func(c *gin.Context) {
 		userID, _ := middleware.AuthenticatedUserID(c)
-		c.JSON(http.StatusOK, gin.H{"user_id": userID})
+		utils.Success(c, gin.H{"user_id": userID})
 	})
 	api.POST("/auth/login", auth.NewLoginHandler(r.appCfg).Login)
 }

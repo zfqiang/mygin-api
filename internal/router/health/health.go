@@ -4,6 +4,7 @@ import (
 	"context"
 	"mygin-api/internal/middleware"
 	"mygin-api/pkg/config"
+	"mygin-api/pkg/utils"
 	"net/http"
 	"time"
 
@@ -40,7 +41,7 @@ func (r *HealthRouter) registerHealthRoutes() {
 		Use(middleware.RateLimitMiddleware(rate.Limit(r.appCfg.Cfg.RateLimitIP), r.appCfg.Cfg.RateBurstIP, r.appCfg.Logger)).
 		Use(middleware.LocalhostOnlyMiddleware())
 	h.GET("/", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		utils.Success(c, gin.H{"status": "ok"})
 	})
 	// 注册就绪检查端点 /readyz
 	// 这个端点会检查数据库和Redis的连接状态，确保服务完全就绪
@@ -54,30 +55,30 @@ func (r *HealthRouter) registerHealthRoutes() {
 		if err != nil {
 			// 记录MySQL检查失败的日志
 			r.appCfg.Logger.Errorf("就绪检查失败 | dependency=MySQL | error=%v", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
+			utils.Failure(c, http.StatusServiceUnavailable, "not ready")
 			return
 		}
 		// 检查MySQL连接是否可用
 		if err := sqlDB.PingContext(ctx); err != nil {
 			// 记录MySQL连接检查失败的日志
 			r.appCfg.Logger.Errorf("就绪检查失败 | dependency=MySQL | error=%v", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
+			utils.Failure(c, http.StatusServiceUnavailable, "not ready")
 			return
 		}
 		// 检查Redis连接是否可用
 		if err := r.appCfg.RedisClient.Ping(ctx).Err(); err != nil {
 			// 记录Redis检查失败的日志
 			r.appCfg.Logger.Errorf("就绪检查失败 | dependency=Redis | error=%v", err)
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
+			utils.Failure(c, http.StatusServiceUnavailable, "not ready")
 			return
 		}
 		if r.appCfg.RabbitMQ == nil || !r.appCfg.RabbitMQ.IsConnected() {
 			r.appCfg.Logger.Errorf("就绪检查失败 | dependency=RabbitMQ | error=connection unavailable")
-			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready"})
+			utils.Failure(c, http.StatusServiceUnavailable, "not ready")
 			return
 		}
 		// 所有检查通过，返回服务就绪状态
-		c.JSON(http.StatusOK, gin.H{"status": "ready"})
+		utils.Success(c, gin.H{"status": "ready"})
 	})
 }
 

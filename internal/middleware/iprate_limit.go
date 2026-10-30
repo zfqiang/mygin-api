@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
 	"mygin-api/pkg/logging"
+	"mygin-api/pkg/utils"
 )
 
 type IPRateLimiter struct {
@@ -102,10 +103,7 @@ func RateLimitMiddleware(limit rate.Limit, burst int, logger *logging.Logger) gi
 				ip,
 				c.Request.URL.Path,
 			)
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error": "rate limit exceeded for IP: " + ip,
-			})
-			c.Abort()
+			utils.AbortFailure(c, http.StatusTooManyRequests, "rate limit exceeded for IP: "+ip)
 			return
 		}
 

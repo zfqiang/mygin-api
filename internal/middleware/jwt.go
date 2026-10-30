@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"mygin-api/pkg/utils"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -79,5 +81,5 @@ func AuthenticatedUserID(c *gin.Context) (uint64, bool) {
 }
 
 func unauthorized(c *gin.Context) {
-	c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+	utils.AbortFailure(c, http.StatusUnauthorized, "unauthorized")
 }

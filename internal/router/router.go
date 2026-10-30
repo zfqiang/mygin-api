@@ -8,6 +8,7 @@ import (
 	"mygin-api/internal/router/gen"
 	"mygin-api/internal/router/health"
 	"mygin-api/pkg/config"
+	"mygin-api/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/time/rate"
@@ -46,6 +47,10 @@ func (router *RouterCfg) New(appCfg *config.AppConfig) http.Handler {
 	// 注册虚拟数据路由
 	gen := gen.NewGenRouter(appCfg)
 	gen.RegisterRoutes()
+
+	engine.NoRoute(func(c *gin.Context) {
+		utils.Failure(c, http.StatusNotFound, "not found")
+	})
 
 	return engine
 }

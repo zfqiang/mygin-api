@@ -92,6 +92,22 @@ logs/                   # 运行日志
 | GET | `/activity/secKill/init` | 初始化秒杀商品库存到 Redis |
 | POST | `/activity/secKill/start` | 秒杀示例接口 |
 
+## 统一响应格式
+
+业务接口和中间件统一返回以下 JSON 结构，`code` 与 HTTP 状态码一致；成功结果放在 `data` 中，失败时 `data` 为 `null`：
+
+```json
+{
+  "code": 200,
+  "msg": "success",
+  "data": {
+    "message": "pong"
+  }
+}
+```
+
+使用 `pkg/utils` 中的 `Success` 和 `Failure` 快速返回成功或错误响应；需要自定义业务码时可使用 `Respond`。如需中止 Gin 请求链，可使用 `AbortFailure`。
+
 登录请求示例：
 
 ```json

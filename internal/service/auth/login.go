@@ -9,6 +9,7 @@ import (
 	"mygin-api/internal/middleware"
 	"mygin-api/pkg/config"
 	"mygin-api/pkg/logging"
+	"mygin-api/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -78,11 +79,11 @@ type loginRequest struct {
 func (h *LoginHandler) Login(c *gin.Context) {
 	var request loginRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		utils.Failure(c, http.StatusBadRequest, "invalid request")
 		return
 	}
 	if len(request.Password) > 72 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		utils.Failure(c, http.StatusBadRequest, "invalid request")
 		return
 	}
 
@@ -91,33 +92,30 @@ func (h *LoginHandler) Login(c *gin.Context) {
 		Where("username = ?", request.Username).
 		First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
+		utils.Failure(c, http.StatusUnauthorized, "invalid username or password")
 		return
 	}
 	if err != nil {
 		h.logger.Errorf("登录时查询用户失败 | error=%v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		utils.Failure(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(request.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid username or password"})
+		utils.Failure(c, http.StatusUnauthorized, "invalid username or password")
 		return
 	}
 
 	token, err := middleware.IssueToken(user.ID, h.secret, h.issuer, h.ttl)
 	if err != nil {
 		h.logger.Errorf("登录令牌生成失败 | error=%v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		utils.Failure(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	utils.Success(c, gin.H{
 		"access_token": token,
 		"token_type":   "Bearer",
 		"expires_in":   int64(h.ttl.Seconds()),
-		"user": gin.H{
-			"id":       user.ID,
-			"username": user.Username,
-		},
+		"user":         gin.H{"id": user.ID, "username": user.Username},
 	})
 }

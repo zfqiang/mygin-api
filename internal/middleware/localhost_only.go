@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"mygin-api/pkg/utils"
 )
 
 func LocalhostOnlyMiddleware() gin.HandlerFunc {
@@ -16,17 +17,13 @@ func LocalhostOnlyMiddleware() gin.HandlerFunc {
 		// 2. 解析 IP
 		ip := net.ParseIP(clientIP)
 		if ip == nil {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error": "Invalid IP address",
-			})
+			utils.AbortFailure(c, http.StatusForbidden, "Invalid IP address")
 			return
 		}
 
 		// 3. 判断是否为本地回环地址 (127.0.0.1 或 ::1)
 		if !ip.IsLoopback() {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error": "Access denied: Only localhost is allowed",
-			})
+			utils.AbortFailure(c, http.StatusForbidden, "Access denied: Only localhost is allowed")
 			return
 		}
 

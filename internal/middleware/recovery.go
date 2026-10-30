@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"mygin-api/pkg/logging"
+	"mygin-api/pkg/utils"
 )
 
 func Recovery(logger *logging.Logger) gin.HandlerFunc {
@@ -16,6 +17,6 @@ func Recovery(logger *logging.Logger) gin.HandlerFunc {
 			c.Request.URL.Path,
 			string(debug.Stack()),
 		)
-		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
+		utils.AbortFailure(c, http.StatusInternalServerError, "internal server error")
 	})
 }

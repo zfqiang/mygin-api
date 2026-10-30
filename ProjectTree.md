@@ -75,6 +75,7 @@ mygin-api/
 │       ├── constant.go            # 通用常量
 │       ├── redis_keys.go           # Redis 键名定义
 │       ├── response.go             # 统一响应格式
+│       ├── response_test.go        # 统一响应格式测试
 │       ├── tool.go                 # 通用辅助函数
 │       └── work_pool.go            # 并发工作池
 ├── scripts/                        # 代码生成和 SQL 脚本
@@ -108,4 +109,3 @@ mygin-api/
     对于通过 go generate或其他工具自动生成的代码文件，建议使用 _gen.go 或 _generated.go 作为后缀，以便与手写代码区分，并方便在 .gitignore 中管理。
 - 特殊前缀文件：构建忽略
     Go 构建工具链会‌忽略‌以 _（下划线）或 .（点）开头的源文件。这些文件不会参与编译。
-

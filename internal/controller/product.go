@@ -11,9 +11,11 @@ import (
 	"net/http"
 	"time"
 
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/go-faker/faker/v4"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 type ProductParam struct {
@@ -34,7 +36,7 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 	var param ProductParam
 	if err := c.ShouldBindJSON(&param); err != nil {
 		p.appCfg.Logger.WarnF("秒杀请求参数解析失败 | error=%v", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.Failure(c, http.StatusBadRequest, "invalid request")
 		return
 	}
 
@@ -49,7 +51,7 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 			userID,
 			count,
 		)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid parameters"})
+		utils.Failure(c, http.StatusBadRequest, "invalid parameters")
 		return
 	}
 
@@ -62,7 +64,7 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 	if err != nil {
 		p.appCfg.Logger.Errorf("查询用户秒杀记录失败 | redis_command=SISMEMBER | product_id=%d | user_id=%d | error=%v",
 			productID, userID, err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Redis error: SIsMember"})
+		utils.Failure(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
 
@@ -71,7 +73,7 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 			productID,
 			userID,
 		)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "用户已购抢购过该商品"})
+		utils.Failure(c, http.StatusBadRequest, "用户已购抢购过该商品")
 		return
 	}
 
@@ -93,13 +95,13 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 	// 等待协程结果，或者设置一个较短的超时让前端轮询/等待
 	select {
 	case <-ctx.Done():
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		utils.Failure(c, http.StatusInternalServerError, "internal server error")
 		return
 	case <-time.After(5 * time.Second):
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "处理超时，请稍后查询订单状态"})
+		utils.Failure(c, http.StatusGatewayTimeout, "处理超时，请稍后查询订单状态")
 		return
 	case resp := <-resultChan:
-		c.JSON(http.StatusOK, resp)
+		utils.Success(c, resp)
 	}
 
 }
@@ -107,8 +109,8 @@ func (p *ProductController) HandleSecKill(c *gin.Context) {
 func (o *ProductController) GenTestProductData(c *gin.Context) {
 	count, err := utils.StrToInt(c.DefaultQuery("count", "10"))
 	if err != nil {
-		c.JSON(200, gin.H{"status": "error", "message": err.Error()})
 		o.appCfg.Logger.WarnF("生成测试商品数据时数量参数无效 | error=%v", err)
+		utils.Failure(c, http.StatusBadRequest, "invalid count")
 		return
 	}
 	Products := make([]fakermodel.Product, count)
@@ -126,26 +128,42 @@ func (o *ProductController) GenTestProductData(c *gin.Context) {
 			Product.Price,
 		)
 	}
-	o.appCfg.DB.CreateInBatches(&Products, count)
-	c.JSON(200, gin.H{"status": "success"})
+	if err := o.appCfg.DB.CreateInBatches(&Products, count).Error; err != nil {
+		o.appCfg.Logger.Errorf("生成测试商品数据失败 | error=%v", err)
+		utils.Failure(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	utils.Success(c, nil)
 }
 
 func (o *ProductController) SecKillInit(c *gin.Context) {
-	productID, _ := utils.StrToInt64(c.DefaultQuery("product_id", "1"))
+	productID, err := utils.StrToInt64(c.DefaultQuery("product_id", "1"))
+	if err != nil {
+		utils.Failure(c, http.StatusBadRequest, "invalid product_id")
+		return
+	}
 
 	if productID <= 0 {
-		c.JSON(200, gin.H{"status": "error", "message": "Invalid product_id"})
+		utils.Failure(c, http.StatusBadRequest, "invalid product_id")
 		return
 	}
 	// 查询商品信息
 	var product model.Product
 	if err := o.appCfg.DB.Select("id, stock").Where("id = ?", productID).Where("stock > 0").First(&product).Error; err != nil {
-		c.JSON(200, gin.H{"status": "error", "message": err.Error()})
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			utils.Failure(c, http.StatusNotFound, "product not found or out of stock")
+			return
+		}
+		o.appCfg.Logger.Errorf("查询秒杀商品失败 | product_id=%d | error=%v", productID, err)
+		utils.Failure(c, http.StatusInternalServerError, "internal server error")
 		return
 	}
-
 	//初始化到抢购的redis里面
 	pscKey := utils.GetProductSeckillKey(productID)
-	o.appCfg.RedisClient.Set(context.Background(), pscKey, product.Stock, 0)
-	c.JSON(200, gin.H{"status": "success"})
+	if err := o.appCfg.RedisClient.Set(c.Request.Context(), pscKey, product.Stock, 0).Err(); err != nil {
+		o.appCfg.Logger.Errorf("初始化秒杀库存失败 | product_id=%d | error=%v", productID, err)
+		utils.Failure(c, http.StatusInternalServerError, "internal server error")
+		return
+	}
+	utils.Success(c, nil)
 }
